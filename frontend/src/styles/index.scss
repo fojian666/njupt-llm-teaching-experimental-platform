@@ -1,0 +1,107 @@
+/* 全局基础样式 —— 平台是中后台形态，视觉上克制，把注意力留给数据 */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: #303133;
+  background-color: #f5f7fa;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 页面通用留白 */
+.page {
+  padding: 16px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+}
+
+/* 表格里的次级文字 */
+.text-muted {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 引用来源面板 */
+.citation-item {
+  padding: 10px 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background: #fafbfc;
+  margin-bottom: 8px;
+
+  &.is-cited {
+    border-color: #409eff;
+    background: #ecf5ff;
+  }
+}
+
+/* 流式回答里的光标效果 */
+.streaming-cursor::after {
+  content: '▍';
+  color: #409eff;
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* markdown 正文 */
+.answer-md {
+  line-height: 1.75;
+  word-break: break-word;
+
+  code {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #f0f2f5;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  pre {
+    padding: 12px;
+    border-radius: 6px;
+    background: #282c34;
+    overflow-x: auto;
+
+    code {
+      background: transparent;
+      color: #abb2bf;
+    }
+  }
+
+  table {
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid #e4e7ed;
+    }
+  }
+}

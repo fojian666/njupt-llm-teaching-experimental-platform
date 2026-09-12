@@ -1,0 +1,23 @@
+# ---- Python / Django ----
+backend/.venv/
+__pycache__/
+*.py[cod]
+backend/.env
+backend/media/
+backend/db.sqlite3
+backend/.tmp/
+
+# ---- Node / 前端 ----
+frontend/node_modules/
+frontend/dist/
+
+# ---- 工作区辅助（个人数据，不入库）----
+.workbuddy/
+.tmp/
+.DS_Store
+
+# ---- 原始素材（版权原因不入库，按需自行调整）----
+*.pdf
+*.epub
+ocr/
+演示视频.mp4
