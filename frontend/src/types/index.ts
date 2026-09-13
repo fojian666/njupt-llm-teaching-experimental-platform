@@ -95,6 +95,7 @@ export interface Chunk {
   content: string
   char_count: number
   has_embedding: boolean
+  is_active: boolean
 }
 
 export interface Citation {
@@ -125,13 +126,14 @@ export interface Agent {
   model_name: string
   knowledge_base_ids: number[]
   knowledge_base_names: string[]
+  conversation_count: number
+  message_count: number
   top_k: number
   score_threshold: number
   temperature: number
   retrieval_first: boolean
   status: string
   status_label: string
-  conversation_count: number
   created_at: string
 }
 

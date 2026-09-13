@@ -24,12 +24,37 @@
           />
         </el-form-item>
         <el-form-item label="解析状态">
-          <el-select v-model="filter.status" clearable placeholder="全部" style="width: 140px" @change="load(1)">
+          <el-select v-model="filter.status" clearable placeholder="全部" style="width: 130px" @change="load(1)">
             <el-option v-for="(l, v) in STATUS" :key="v" :label="l" :value="v" />
           </el-select>
         </el-form-item>
+        <el-form-item label="上传方式">
+          <el-select v-model="filter.method" clearable placeholder="全部" style="width: 130px" @change="load(1)">
+            <el-option label="本地上传" value="upload" />
+            <el-option label="批量导入" value="batch" />
+            <el-option label="OCR 导入" value="ocr" />
+            <el-option label="链接采集" value="url" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="格式">
+          <el-select v-model="filter.file_format" clearable placeholder="全部" style="width: 110px" @change="load(1)">
+            <el-option v-for="f in formatOptions" :key="f" :label="f" :value="f" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="filter.tag" clearable filterable placeholder="全部" style="width: 130px" @change="load(1)">
+            <el-option v-for="t in tags" :key="t.id" :label="t.name" :value="t.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上传时间">
+          <el-date-picker
+            v-model="filter.dateRange" type="daterange" value-format="YYYY-MM-DD"
+            range-separator="至" start-placeholder="开始" end-placeholder="结束"
+            style="width: 240px" @change="load(1)"
+          />
+        </el-form-item>
         <el-form-item label="关键词">
-          <el-input v-model="filter.keyword" placeholder="名称 / 来源说明" clearable style="width: 200px" @keyup.enter="load(1)" />
+          <el-input v-model="filter.keyword" placeholder="名称 / 来源说明" clearable style="width: 180px" @keyup.enter="load(1)" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="load(1)">查询</el-button>
@@ -39,6 +64,14 @@
     </el-card>
 
     <el-card shadow="never">
+      <!-- 批量操作条：视频里的「添加标签 / 移动分类 / 批量重新解析」 -->
+      <div class="batch-bar" v-if="selected.length">
+        <span class="muted">已选 {{ selected.length }} 项：</span>
+        <el-button size="small" @click="tagDialog = true">添加标签</el-button>
+        <el-button size="small" @click="openMove">移动分类</el-button>
+        <el-button size="small" :loading="batchParsing" @click="batchReparse">批量重新解析</el-button>
+        <el-button size="small" type="danger" @click="batchDel">删除</el-button>
+      </div>
       <el-table :data="rows" v-loading="loading" @selection-change="(s: DataResource[]) => (selected = s)">
         <el-table-column type="selection" width="44" />
         <el-table-column prop="name" label="数据名称" min-width="220" show-overflow-tooltip />
@@ -71,8 +104,6 @@
       </el-table>
 
       <div class="pager">
-        <span class="muted">已选 {{ selected.length }} 项</span>
-        <el-button size="small" :disabled="!selected.length" @click="batchDel">批量删除</el-button>
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -94,13 +125,16 @@
           <el-descriptions-item label="大小">{{ detail.file_size_label }}</el-descriptions-item>
           <el-descriptions-item label="字符数">{{ detail.char_count }}</el-descriptions-item>
           <el-descriptions-item label="解析状态" :span="2">{{ detail.parse_status_label }} · {{ detail.parse_message }}</el-descriptions-item>
-          <el-descriptions-item label="已入知识库" :span="2">
-            <el-tag v-for="n in detail.in_knowledge_bases" :key="n" size="small" type="success" style="margin-right: 6px">{{ n }}</el-tag>
-            <span v-if="!detail.in_knowledge_bases.length" class="muted">未导入</span>
-          </el-descriptions-item>
-        </el-descriptions>
-        <h4 style="margin: 16px 0 8px">正文预览</h4>
-        <pre class="preview">{{ detail.content_preview || '（尚未解析出正文）' }}</pre>
+        <el-descriptions-item label="已入知识库" :span="2">
+          <el-tag v-for="n in detail.in_knowledge_bases" :key="n" size="small" type="success" style="margin-right: 6px">{{ n }}</el-tag>
+          <span v-if="!detail.in_knowledge_bases.length" class="muted">未导入</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <div style="margin-top: 12px">
+        <el-button tag="a" :href="resourceApi.downloadUrl(detail.id)">下载数据</el-button>
+      </div>
+      <h4 style="margin: 16px 0 8px">正文预览</h4>
+      <pre class="preview">{{ detail.content_preview || '（尚未解析出正文）' }}</pre>
       </template>
     </el-drawer>
 
@@ -127,6 +161,42 @@
       <template #footer>
         <el-button @click="editDialog = false">取消</el-button>
         <el-button type="primary" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量添加标签：增量，不清除已有标签 -->
+    <el-dialog v-model="tagDialog" title="批量添加标签" width="460">
+      <el-form label-width="90">
+        <el-form-item label="标签">
+          <el-select
+            v-model="batchTagInput" multiple filterable allow-create default-first-option
+            placeholder="输入或选择标签，回车确认" style="width: 100%"
+          >
+            <el-option v-for="t in tags" :key="t.id" :label="t.name" :value="t.name" />
+          </el-select>
+          <div class="muted" style="font-size: 12px; line-height: 1.6">只做增量添加，各条数据已有的标签保留</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="tagDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveBatchTags">为 {{ selected.length }} 条添加</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量移动分类 -->
+    <el-dialog v-model="moveDialog" title="批量移动分类" width="460">
+      <el-form label-width="90">
+        <el-form-item label="目标分类">
+          <el-tree-select
+            v-model="moveCategoryId" :data="tree" clearable check-strictly
+            :props="{ label: 'name', children: 'children' }" value-key="id"
+            placeholder="不选则移出分类" style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="moveDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveBatchMove">移动 {{ selected.length }} 条</el-button>
       </template>
     </el-dialog>
   </div>
@@ -158,13 +228,24 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
-const filter = reactive({ category_id: undefined as number | undefined, status: '', keyword: '' })
+const filter = reactive({
+  category_id: undefined as number | undefined,
+  status: '', method: '', file_format: '', tag: '',
+  dateRange: null as [string, string] | null,
+  keyword: '',
+})
 
 async function load(p = page.value) {
   page.value = p
   loading.value = true
   try {
-    const res = await resourceApi.list({ ...filter, page: p, page_size: pageSize.value })
+    const res = await resourceApi.list({
+      ...filter,
+      date_from: filter.dateRange?.[0],
+      date_to: filter.dateRange?.[1],
+      page: p,
+      page_size: pageSize.value,
+    })
     rows.value = res.items
     total.value = res.total
   } finally {
@@ -175,6 +256,10 @@ async function load(p = page.value) {
 function reset() {
   filter.category_id = undefined
   filter.status = ''
+  filter.method = ''
+  filter.file_format = ''
+  filter.tag = ''
+  filter.dateRange = null
   filter.keyword = ''
   load(1)
 }
@@ -226,6 +311,52 @@ async function batchDel() {
   await load()
 }
 
+// ---------------- 批量操作：添加标签 / 移动分类 / 批量重新解析 ----------------
+const tags = ref<{ id: number; name: string }[]>([])
+const formatOptions = ref<string[]>([])
+const tagDialog = ref(false)
+const moveDialog = ref(false)
+const batchTagInput = ref<string[]>([])
+const moveCategoryId = ref<number | null>(null)
+const batchParsing = ref(false)
+
+async function batchReparse() {
+  await ElMessageBox.confirm(`对选中的 ${selected.value.length} 条数据重新解析？`, '提示', { type: 'warning' })
+  batchParsing.value = true
+  try {
+    const r = await resourceApi.batchParse(selected.value.map((x) => x.id))
+    ElMessage.success(r.data?.message ?? '已开始解析')
+    setTimeout(() => load(), 1500)
+  } finally {
+    batchParsing.value = false
+  }
+}
+
+async function saveBatchTags() {
+  const names = batchTagInput.value.map((t) => t.trim()).filter(Boolean)
+  if (!names.length) {
+    ElMessage.warning('请选择或输入至少一个标签')
+    return
+  }
+  const r = await resourceApi.batchTags(selected.value.map((x) => x.id), names)
+  ElMessage.success(r.data?.message ?? '已添加标签')
+  tagDialog.value = false
+  batchTagInput.value = []
+  await load()
+}
+
+function openMove() {
+  moveCategoryId.value = null
+  moveDialog.value = true
+}
+
+async function saveBatchMove() {
+  const r = await resourceApi.batchMove(selected.value.map((x) => x.id), moveCategoryId.value ?? 0)
+  ElMessage.success(r.data?.message ?? '已移动')
+  moveDialog.value = false
+  await load()
+}
+
 // ---------------- 编辑元数据 ----------------
 const editDialog = ref(false)
 const editId = ref(0)
@@ -269,7 +400,14 @@ async function saveEdit() {
 onMounted(async () => {
   tree.value = await categoryApi.tree()
   await load(1)
+  try {
+    tags.value = await tagApi.list()
+  } catch { /* 学生无权限时忽略 */ }
+  try {
+    formatOptions.value = await resourceApi.formats()
+  } catch { /* 接口异常时格式筛选留空 */ }
 })
+
 </script>
 
 <style scoped lang="scss">
@@ -287,6 +425,16 @@ onMounted(async () => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 14px;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f0f7ff;
+  border-radius: 8px;
 }
 
 .preview {

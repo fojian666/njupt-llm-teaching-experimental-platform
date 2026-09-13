@@ -6,6 +6,7 @@
 from typing import Annotated, List, Optional
 
 from django.db.models import Count, Q
+from django.http import FileResponse
 from ninja import File, Form, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -289,6 +290,9 @@ def list_resources(
     status: str = "",
     keyword: str = "",
     method: str = "",
+    file_format: str = "",
+    date_from: str = "",
+    date_to: str = "",
     page: int = 1,
     page_size: int = 20,
 ):
@@ -310,6 +314,12 @@ def list_resources(
         qs = qs.filter(parse_status=status)
     if method:
         qs = qs.filter(upload_method=method)
+    if file_format:
+        qs = qs.filter(file_format=file_format)
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
     if keyword:
         qs = qs.filter(Q(name__icontains=keyword) | Q(source_note__icontains=keyword))
 
@@ -323,21 +333,110 @@ def list_resources(
     return result
 
 
-@router.get("/resources/{resource_id}", response=ResourceDetailOut)
-def get_resource(request, resource_id: int):
+@router.post("/resources/batch-delete")
+def batch_delete_resources(request, ids: List[int]):
+    require_manager(request)
+    deleted, blocked = 0, []
+    for r in DataResource.objects.filter(id__in=ids, is_deleted=False):
+        if r.knowledge_docs.filter(is_active=True).exists():
+            blocked.append(r.name)
+            continue
+        r.is_deleted = True
+        r.save(update_fields=["is_deleted", "updated_at"])
+        deleted += 1
+    log_action(request, "batch_delete_resources", "DataResource", ",".join(map(str, ids)), deleted=deleted)
+    return {
+        "ok": True,
+        "message": f"已删除 {deleted} 条" + (f"，{len(blocked)} 条被知识库引用未删除" if blocked else ""),
+        "blocked": blocked,
+    }
+
+
+# --------------------------------------------------------------------------
+# 批量操作与下载
+# 注意：这些字面路径必须注册在 /resources/{resource_id} 动态路由之前，
+# 否则 "batch-xxx" 会被当成 resource_id 匹配到详情/删除路由上，直接 405。
+# --------------------------------------------------------------------------
+class BatchIdsIn(Schema):
+    ids: List[int]
+
+
+@router.post("/resources/batch-parse")
+def batch_parse(request, payload: BatchIdsIn):
+    """批量重新解析：逐条排入解析队列，成功与否看各自的解析状态。"""
+    require_manager(request)
+    ok, skipped = 0, 0
+    for rid in payload.ids:
+        r = DataResource.objects.filter(id=rid, is_deleted=False).first()
+        if r is None or (not r.file and not r.content_text):
+            skipped += 1
+            continue
+        run_task(parse_resource_task, r.id)
+        ok += 1
+    log_action(request, "batch_parse_resource", "DataResource", 0, detail=f"{ok} 条排入解析，{skipped} 条跳过")
+    return {"ok": True, "message": f"已对 {ok} 条数据重新开始解析（跳过 {skipped} 条）", "ok_count": ok, "skipped": skipped}
+
+
+class BatchTagsIn(Schema):
+    ids: List[int]
+    tags: List[str]
+
+
+@router.post("/resources/batch-tags")
+def batch_tags(request, payload: BatchTagsIn):
+    """批量添加标签：只做增量，不清除各条数据已有的标签。"""
+    require_manager(request)
+    names = [t.strip() for t in payload.tags if t.strip()]
+    if not names:
+        raise HttpError(400, "请至少填写一个标签")
+    tag_objs = [DataTag.objects.get_or_create(name=n)[0] for n in names]
+    resources = DataResource.objects.filter(id__in=payload.ids, is_deleted=False).prefetch_related("tags")
+    n = 0
+    for r in resources:
+        existing = {t.name for t in r.tags.all()}
+        for t in tag_objs:
+            if t.name not in existing:
+                r.tags.add(t)
+        n += 1
+    log_action(request, "batch_tag_resource", "DataResource", 0, detail=f"{n} 条批量打标 {names}")
+    return {"ok": True, "message": f"已为 {n} 条数据添加标签"}
+
+
+class BatchMoveIn(Schema):
+    ids: List[int]
+    category_id: int
+
+
+@router.post("/resources/batch-move")
+def batch_move(request, payload: BatchMoveIn):
+    """批量移动到目标分类；category_id 传 0 表示移出分类。"""
+    require_manager(request)
+    category = None
+    if payload.category_id:
+        category = DataCategory.objects.filter(id=payload.category_id).first()
+        if category is None:
+            raise HttpError(404, "目标分类不存在")
+    n = DataResource.objects.filter(id__in=payload.ids, is_deleted=False).update(category=category)
+    log_action(request, "batch_move_resource", "DataResource", 0,
+               detail=f"{n} 条移至 {category.full_path if category else '未分类'}")
+    return {"ok": True, "message": f"已移动 {n} 条数据"}
+
+
+@router.get("/resources/{resource_id}/download")
+def download_resource(request, resource_id: int):
     current_user(request)
-    r = (
-        DataResource.objects.filter(id=resource_id, is_deleted=False)
-        .select_related("category")
-        .prefetch_related("tags")
-        .first()
-    )
+    r = DataResource.objects.filter(id=resource_id, is_deleted=False).first()
     if r is None:
         raise HttpError(404, "数据不存在")
-    data = _resource_out(r)
-    data["in_knowledge_bases"] = data.pop("_kb_names", [])
-    data["content_preview"] = (r.content_text or "")[:20000]
-    return data
+    if not r.file:
+        raise HttpError(400, "这条数据没有源文件可下载")
+    from pathlib import Path
+
+    path = Path(r.file.path)
+    if not path.exists():
+        raise HttpError(404, "源文件已丢失")
+    log_action(request, "download_resource", "DataResource", r.id, name=r.name)
+    return FileResponse(path.open("rb"), as_attachment=True, filename=path.name)
 
 
 @router.post("/resources/upload", response=ResourceDetailOut)
@@ -451,25 +550,6 @@ def delete_resource(request, resource_id: int):
     return {"ok": True, "message": f"已删除 {r.name}"}
 
 
-@router.post("/resources/batch-delete")
-def batch_delete_resources(request, ids: List[int]):
-    require_manager(request)
-    deleted, blocked = 0, []
-    for r in DataResource.objects.filter(id__in=ids, is_deleted=False):
-        if r.knowledge_docs.filter(is_active=True).exists():
-            blocked.append(r.name)
-            continue
-        r.is_deleted = True
-        r.save(update_fields=["is_deleted", "updated_at"])
-        deleted += 1
-    log_action(request, "batch_delete_resources", "DataResource", ",".join(map(str, ids)), deleted=deleted)
-    return {
-        "ok": True,
-        "message": f"已删除 {deleted} 条" + (f"，{len(blocked)} 条被知识库引用未删除" if blocked else ""),
-        "blocked": blocked,
-    }
-
-
 @router.get("/stats")
 def dataset_stats(request):
     """数据管理页顶部的统计卡片。"""
@@ -493,3 +573,23 @@ def dataset_stats(request):
 def list_formats(request):
     current_user(request)
     return {"supported": supported_formats()}
+
+
+@router.get("/resources/{resource_id}", response=ResourceDetailOut)
+def get_resource(request, resource_id: int):
+    current_user(request)
+    r = (
+        DataResource.objects.filter(id=resource_id, is_deleted=False)
+        .select_related("category")
+        .prefetch_related("tags")
+        .first()
+    )
+    if r is None:
+        raise HttpError(404, "数据不存在")
+    data = _resource_out(r)
+    data["in_knowledge_bases"] = data.pop("_kb_names", [])
+    data["content_preview"] = (r.content_text or "")[:20000]
+    return data
+
+
+

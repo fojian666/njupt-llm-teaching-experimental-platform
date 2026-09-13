@@ -3,22 +3,26 @@
     <!-- 左侧：会话历史 -->
     <div class="side">
       <div class="side-head">
+        <el-input v-model="convKeyword" placeholder="搜索会话" clearable size="small" style="margin-bottom: 8px" />
         <el-button type="primary" class="new-btn" @click="newConversation">新建会话</el-button>
       </div>
       <div class="conv-list">
-        <div
-          v-for="c in conversations"
-          :key="c.id"
-          class="conv-item"
-          :class="{ active: c.id === conversationId }"
-          @click="openConversation(c.id)"
-        >
-          <span class="ctitle">{{ c.title || '新会话' }}</span>
-          <button class="conv-del" title="删除会话" @click.stop="delConversation(c)">
-            <el-icon><Delete /></el-icon>
-          </button>
-        </div>
-        <el-empty v-if="!conversations.length" description="暂无历史" :image-size="54" />
+        <template v-for="g in groupedConversations" :key="g.label">
+          <div class="conv-group">{{ g.label }}</div>
+          <div
+            v-for="c in g.items"
+            :key="c.id"
+            class="conv-item"
+            :class="{ active: c.id === conversationId }"
+            @click="openConversation(c.id)"
+          >
+            <span class="ctitle">{{ c.title || '新会话' }}</span>
+            <button class="conv-del" title="删除会话" @click.stop="delConversation(c)">
+              <el-icon><Delete /></el-icon>
+            </button>
+          </div>
+        </template>
+        <el-empty v-if="!groupedConversations.length" description="暂无会话" :image-size="54" />
       </div>
     </div>
 
@@ -34,6 +38,10 @@
             <span class="muted">{{ agent?.description }}</span>
           </div>
         </div>
+        <div class="head-right">
+          <span class="muted">对话 {{ agent?.conversation_count ?? 0 }} · 提问 {{ agent?.message_count ?? 0 }}</span>
+          <el-link :underline="false" href="/api/docs" target="_blank" class="api-link">API 文档</el-link>
+        </div>
       </div>
 
       <div class="messages-wrap">
@@ -45,10 +53,16 @@
             </div>
             <h3>{{ agent?.welcome_message }}</h3>
             <div class="sug">
-              <button v-for="q in agent?.suggested_questions || []" :key="q" class="sug-chip" @click="ask(q)">
+              <button v-for="q in visibleSuggestions" :key="q" class="sug-chip" @click="ask(q)">
                 {{ q }}
               </button>
             </div>
+            <button
+              v-if="(agent?.suggested_questions?.length ?? 0) > visibleSuggestions.length"
+              class="refresh-sug" @click="shuffleSuggestions"
+            >
+              换一批
+            </button>
           </div>
 
           <div v-for="(m, i) in messages" :key="m.id ? `m${m.id}` : `t${i}`" class="msg" :class="m.role">
@@ -84,8 +98,8 @@
                   <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
                     <el-icon><DocumentCopy /></el-icon>
                   </el-button>
-                  <el-button v-if="m.is_error && i === messages.length - 1" link size="small" @click="retry(m)">
-                    重试
+                  <el-button v-if="i === messages.length - 1" link size="small" @click="retry(m)">
+                    {{ m.is_error ? '重试' : '重新生成' }}
                   </el-button>
                   <template v-if="m.model_name && i === messages.length - 1">
                     <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
@@ -338,6 +352,48 @@ function newConversation() {
   notice.value = ''
   resetScrollState()
   router.replace({ query: { ...route.query, c: undefined } })
+}
+
+// ---------- 会话分组与搜索 ----------
+// 演示视频里的侧栏按「今天 / 近七天」分组，另带关键词搜索；分组只在前端算。
+const convKeyword = ref('')
+const filteredConversations = computed(() => {
+  const kw = convKeyword.value.trim().toLowerCase()
+  if (!kw) return conversations.value
+  return conversations.value.filter((c) => (c.title || '').toLowerCase().includes(kw))
+})
+const groupedConversations = computed(() => {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const sevenDaysAgo = startOfToday - 6 * 86_400_000
+  const groups: { label: string; items: Conversation[] }[] = [
+    { label: '今天', items: [] },
+    { label: '近七天', items: [] },
+    { label: '更早', items: [] },
+  ]
+  for (const c of filteredConversations.value) {
+    const t = new Date(String(c.updated_at).replace(' ', 'T')).getTime()
+    if (!Number.isFinite(t) || t < sevenDaysAgo) groups[2].items.push(c)
+    else if (t >= startOfToday) groups[0].items.push(c)
+    else groups[1].items.push(c)
+  }
+  return groups.filter((g) => g.items.length)
+})
+
+// ---------- 推荐问题「换一批」 ----------
+const sugOffset = ref(0)
+const SUGGEST_SIZE = 4
+const visibleSuggestions = computed(() => {
+  const all = agent.value?.suggested_questions ?? []
+  if (!all.length) return []
+  const out: string[] = []
+  for (let k = 0; k < Math.min(SUGGEST_SIZE, all.length); k++) {
+    out.push(all[(sugOffset.value + k) % all.length])
+  }
+  return out
+})
+function shuffleSuggestions() {
+  sugOffset.value += SUGGEST_SIZE
 }
 
 async function openConversation(id: number) {
@@ -599,6 +655,12 @@ onMounted(loadAll)
   }
 
   /* 选中态用圆角灰底（iOS 列表风格），不用左侧色条 —— 色条太"管理后台"了 */
+  .conv-group {
+    padding: 10px 10px 4px;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+
   .conv-item {
     position: relative;
     display: flex;
@@ -753,9 +815,30 @@ onMounted(loadAll)
   background: #fff; /* 助手回答不再包气泡，直接铺在白底上 */
 
   .chat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 12px 24px;
     background: #fff;
     border-bottom: 1px solid rgba(60, 60, 67, 0.08); /* iOS separator 的观感：极淡 */
+
+    .head-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+
+      .muted {
+        color: var(--ink-3);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .api-link {
+        font-size: 12px;
+      }
+    }
 
     .who {
       display: flex;
@@ -861,6 +944,21 @@ onMounted(loadAll)
         gap: 8px;
         justify-content: center;
         margin-top: 22px;
+      }
+
+      .refresh-sug {
+        margin-top: 12px;
+        padding: 4px 10px;
+        border: none;
+        background: transparent;
+        color: var(--ink-3);
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+
+        &:hover {
+          color: var(--brand);
+        }
       }
 
       /* 建议问题做成胶囊 chip，比默认按钮轻 */

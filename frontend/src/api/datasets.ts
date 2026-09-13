@@ -22,6 +22,14 @@ export const resourceApi = {
   batchRemove: (ids: number[]) => http.post('/datasets/resources/batch-delete', { ids }),
   /** 解析源文件（只解析，不建向量库）。后端是异步执行，前端轮询状态 */
   parse: (id: number) => http.post(`/datasets/resources/${id}/parse`),
+  batchParse: (ids: number[]) => http.post('/datasets/resources/batch-parse', { ids }),
+  /** 批量添加标签：增量，不清除已有标签 */
+  batchTags: (ids: number[], tags: string[]) => http.post('/datasets/resources/batch-tags', { ids, tags }),
+  /** 批量移动到目标分类；categoryId 传 0 表示移出分类 */
+  batchMove: (ids: number[], categoryId: number) =>
+    http.post('/datasets/resources/batch-move', { ids, category_id: categoryId }),
+  /** 源文件下载地址（走 <a href> 直接触发浏览器下载） */
+  downloadUrl: (id: number) => `/api/datasets/resources/${id}/download`,
   stats: () => http.get('/datasets/stats').then((r) => r.data),
   formats: () => http.get('/datasets/formats').then((r) => r.data),
 
@@ -56,6 +64,13 @@ export const kbApi = {
   removeDoc: (docId: number) => http.delete(`/knowledge/docs/${docId}`),
 
   chunks: (docId: number, params?: Record<string, unknown>) => getList<Chunk>(`/knowledge/docs/${docId}/chunks`, params),
+  /** 手工添加切片，挂在指定知识条目下 */
+  createChunk: (payload: { doc_id: number; content: string; chapter_path?: string }) =>
+    http.post('/knowledge/chunks', payload),
+  /** 编辑切片正文 / 章节路径 / 有效性；正文变化时后端会现场重新取向量 */
+  updateChunk: (id: number, payload: { content?: string; chapter_path?: string; is_active?: boolean }) =>
+    http.patch(`/knowledge/chunks/${id}`, payload),
+  deleteChunk: (id: number) => http.delete(`/knowledge/chunks/${id}`),
   outline: (docId: number) => http.get(`/knowledge/docs/${docId}/outline`).then((r) => r.data),
   stats: () => http.get('/knowledge/stats').then((r) => r.data),
 

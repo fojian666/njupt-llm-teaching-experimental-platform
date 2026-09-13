@@ -60,6 +60,10 @@ class Agent(models.Model):
     def conversation_count(self) -> int:
         return self.conversations.count()
 
+    def message_count(self) -> int:
+        """累计问答条数（用户提问 + 助手回答都算），供智能体页头的使用统计展示。"""
+        return Message.objects.filter(conversation__agent=self, conversation__is_deleted=False).count()
+
 
 class Conversation(models.Model):
     """一次会话（对话页左侧的历史条目）。"""

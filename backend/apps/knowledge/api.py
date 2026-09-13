@@ -5,7 +5,7 @@
 """
 from typing import Annotated, List, Optional
 
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 from ninja import Router, Schema
 from ninja.errors import HttpError
@@ -81,6 +81,7 @@ class ChunkOut(Schema):
     content: str
     char_count: int
     has_embedding: bool
+    is_active: bool
 
 
 class SearchIn(Schema):
@@ -214,7 +215,7 @@ def _doc_out(doc: KnowledgeDoc) -> dict:
 
 
 @router.get("/bases/{kb_id}/docs")
-def list_docs(request, kb_id: int, status: str = "", keyword: str = "", page: int = 1, page_size: int = 20):
+def list_docs(request, kb_id: int, status: str = "", file_format: str = "", keyword: str = "", page: int = 1, page_size: int = 20):
     current_user(request)
     if not KnowledgeBase.objects.filter(id=kb_id).exists():
         raise HttpError(404, "知识库不存在")
@@ -226,6 +227,8 @@ def list_docs(request, kb_id: int, status: str = "", keyword: str = "", page: in
     )
     if status:
         qs = qs.filter(parse_status=status)
+    if file_format:
+        qs = qs.filter(data_resource__file_format=file_format)
     if keyword:
         qs = qs.filter(data_resource__name__icontains=keyword)
 
@@ -348,10 +351,106 @@ def list_chunks(request, doc_id: int, chapter: str = "", keyword: str = "", page
             "content": c.content,
             "char_count": c.char_count,
             "has_embedding": c.embedding is not None,
+            "is_active": c.is_active,
         }
         for c in result["items"]
     ]
     return result
+
+
+def _embed_chunk_content(content: str):
+    """给手工编辑/新增的切片现场取向量。失败时返回 None，切片仍可走关键词召回。"""
+    try:
+        from rag.providers import embedding_from_settings
+
+        return embedding_from_settings().embed_one(content)
+    except Exception:  # noqa: BLE001 —— 向量失败不该挡住保存
+        return None
+
+
+class ChunkUpdateIn(Schema):
+    content: Optional[str] = None
+    chapter_path: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@router.patch("/chunks/{chunk_id}", response=ChunkOut)
+def update_chunk(request, chunk_id: int, payload: ChunkUpdateIn):
+    """编辑切片正文 / 章节路径 / 有效性开关。
+
+    正文变化意味着旧向量不再匹配新内容，现场重新取向量；取不到就让该切片
+    退化为关键词召回，而不是拿着旧向量继续冒充新内容。
+    """
+    require_manager(request)
+    c = Chunk.objects.select_related("knowledge_doc").filter(id=chunk_id).first()
+    if c is None:
+        raise HttpError(404, "切片不存在")
+
+    if payload.content is not None and not payload.content.strip():
+        raise HttpError(400, "切片内容不能为空")
+    if payload.content is not None and payload.content != c.content:
+        c.content = payload.content
+        c.char_count = len(payload.content)
+        c.embedding = _embed_chunk_content(payload.content)
+    if payload.chapter_path is not None:
+        c.chapter_path = payload.chapter_path
+    if payload.is_active is not None:
+        c.is_active = payload.is_active
+    c.save(update_fields=["content", "char_count", "chapter_path", "is_active", "embedding"])
+    return {
+        "id": c.id,
+        "seq": c.seq,
+        "chapter_path": c.chapter_path,
+        "content": c.content,
+        "char_count": c.char_count,
+        "has_embedding": c.embedding is not None,
+        "is_active": c.is_active,
+    }
+
+
+@router.delete("/chunks/{chunk_id}")
+def delete_chunk(request, chunk_id: int):
+    require_manager(request)
+    deleted, _ = Chunk.objects.filter(id=chunk_id).delete()
+    if not deleted:
+        raise HttpError(404, "切片不存在")
+    return {"ok": True, "message": "切片已删除"}
+
+
+class ChunkCreateIn(Schema):
+    doc_id: int
+    content: str
+    chapter_path: str = ""
+
+
+@router.post("/chunks", response=ChunkOut)
+def create_chunk(request, payload: ChunkCreateIn):
+    """手工添加切片。挂在指定知识条目下，编号接在末尾，现场取向量。"""
+    require_manager(request)
+    doc = KnowledgeDoc.objects.select_related("knowledge_base").filter(id=payload.doc_id).first()
+    if doc is None:
+        raise HttpError(404, "知识条目不存在")
+    if not payload.content.strip():
+        raise HttpError(400, "切片内容不能为空")
+
+    last_seq = Chunk.objects.filter(knowledge_doc=doc).aggregate(m=Max("seq"))["m"] or 0
+    c = Chunk.objects.create(
+        knowledge_doc=doc,
+        seq=last_seq + 1,
+        content=payload.content,
+        chapter_path=payload.chapter_path or "手工添加",
+        char_count=len(payload.content),
+        embedding=_embed_chunk_content(payload.content),
+    )
+    return {
+        "id": c.id,
+        "seq": c.seq,
+        "chapter_path": c.chapter_path,
+        "content": c.content,
+        "char_count": c.char_count,
+        "has_embedding": c.embedding is not None,
+        "is_active": c.is_active,
+    }
 
 
 @router.get("/chunks/{chunk_id}", response=ChunkOut)

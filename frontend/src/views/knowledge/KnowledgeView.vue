@@ -76,12 +76,14 @@ const page = ref(1)
 const pageSize = ref(20)
 const docsLoading = ref(false)
 const docKeyword = ref('')
+const docFormat = ref('')
+const formatOptions = ref<string[]>([])
 
 async function loadDocs() {
   if (!current.value) return
   docsLoading.value = true
   try {
-    const r = await kbApi.docs(current.value.id, { page: page.value, page_size: pageSize.value, keyword: docKeyword.value })
+    const r = await kbApi.docs(current.value.id, { page: page.value, page_size: pageSize.value, keyword: docKeyword.value, file_format: docFormat.value || undefined })
     docs.value = r.items
     docTotal.value = r.total
   } finally { docsLoading.value = false }
@@ -109,19 +111,99 @@ async function removeDoc(doc: KnowledgeDoc) {
   loadKBs()
 }
 
-// ---------------- 切片预览 ----------------
+// ---------------- 切片管理 ----------------
 const chunkDialog = ref(false)
 const currentDoc = ref<KnowledgeDoc | null>(null)
 const chunks = ref<Chunk[]>([])
 const chunksLoading = ref(false)
+const chunkKeyword = ref('')
 async function showChunks(doc: KnowledgeDoc) {
   currentDoc.value = doc
   chunkDialog.value = true
+  chunkKeyword.value = ''
+  await loadChunks()
+}
+async function loadChunks() {
+  if (!currentDoc.value) return
   chunksLoading.value = true
   try {
-    const r = await kbApi.chunks(doc.id, { page_size: 50 })
+    const r = await kbApi.chunks(currentDoc.value.id, { page_size: 200, keyword: chunkKeyword.value || undefined })
     chunks.value = r.items
   } finally { chunksLoading.value = false }
+}
+
+// 切片编辑 / 新增 / 删除 / 有效开关
+const chunkEditDialog = ref(false)
+const chunkEditId = ref(0)
+const chunkEditSeq = ref(0)
+const chunkEditContent = ref('')
+const chunkEditPath = ref('')
+const chunkSaving = ref(false)
+
+function openAddChunk() {
+  if (!currentDoc.value) return
+  chunkEditId.value = 0
+  chunkEditSeq.value = 0
+  chunkEditContent.value = ''
+  chunkEditPath.value = ''
+  chunkEditDialog.value = true
+}
+
+function openEditChunk(row: Chunk) {
+  chunkEditId.value = row.id
+  chunkEditSeq.value = row.seq
+  chunkEditContent.value = row.content
+  chunkEditPath.value = row.chapter_path
+  chunkEditDialog.value = true
+}
+
+async function saveChunk() {
+  if (!chunkEditContent.value.trim()) {
+    ElMessage.warning('切片内容不能为空')
+    return
+  }
+  chunkSaving.value = true
+  try {
+    if (chunkEditId.value) {
+      await kbApi.updateChunk(chunkEditId.value, {
+        content: chunkEditContent.value,
+        chapter_path: chunkEditPath.value,
+      })
+      ElMessage.success('切片已保存，向量已更新')
+    } else if (currentDoc.value) {
+      await kbApi.createChunk({
+        doc_id: currentDoc.value.id,
+        content: chunkEditContent.value,
+        chapter_path: chunkEditPath.value,
+      })
+      ElMessage.success('切片已添加')
+    }
+    chunkEditDialog.value = false
+    await loadChunks()
+  } finally {
+    chunkSaving.value = false
+  }
+}
+
+async function toggleChunk(row: Chunk, v: boolean) {
+  try {
+    await kbApi.updateChunk(row.id, { is_active: v })
+    row.is_active = v
+    ElMessage.success(v ? '已恢复参与检索' : '已移出检索（数据保留）')
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+async function removeChunk(row: Chunk) {
+  await ElMessageBox.confirm(`确认删除切片 #${row.seq}？删除后不可恢复。`, '提示', { type: 'warning' })
+  try {
+    await kbApi.deleteChunk(row.id)
+    ElMessage.success('切片已删除')
+    await loadChunks()
+  } catch {
+    /* 拦截器已提示 */
+  }
 }
 
 // ---------------- 章节大纲（平铺列表） ----------------
@@ -185,7 +267,12 @@ async function doImport() {
   loadKBs()
 }
 
-onMounted(loadKBs)
+onMounted(async () => {
+  await loadKBs()
+  try {
+    formatOptions.value = await resourceApi.formats()
+  } catch { /* 筛选下拉留空不影响使用 */ }
+})
 </script>
 
 <template>
@@ -223,6 +310,9 @@ onMounted(loadKBs)
         <div class="card-head">
           <span>知识条目（来自「数据管理」导入）</span>
           <div class="head-tools">
+            <el-select v-model="docFormat" clearable placeholder="全部格式" style="width: 110px" @change="loadDocs">
+              <el-option v-for="f in formatOptions" :key="f" :label="f" :value="f" />
+            </el-select>
             <el-input v-model="docKeyword" placeholder="搜索文档名" clearable style="width: 200px" @keyup.enter="loadDocs" @clear="loadDocs" />
             <el-button @click="loadDocs">刷新</el-button>
             <el-button type="primary" @click="openImport">从数据管理导入</el-button>
@@ -340,13 +430,19 @@ onMounted(loadKBs)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="chunkDialog" :title="`切片预览：${currentDoc?.name ?? ''}`" width="780" top="6vh">
-      <el-table v-loading="chunksLoading" :data="chunks" size="small" border max-height="560">
+    <el-dialog v-model="chunkDialog" :title="`切片管理：${currentDoc?.name ?? ''}`" width="840" top="6vh">
+      <div style="display: flex; gap: 8px; margin-bottom: 10px">
+        <el-input v-model="chunkKeyword" placeholder="搜索切片内容" clearable style="width: 240px" @keyup.enter="loadChunks" @change="loadChunks" />
+        <el-button @click="loadChunks">搜索</el-button>
+        <span style="flex: 1" />
+        <el-button type="primary" size="small" @click="openAddChunk">添加切片</el-button>
+      </div>
+      <el-table v-loading="chunksLoading" :data="chunks" size="small" border max-height="520">
         <el-table-column prop="seq" label="#" width="55" />
-        <el-table-column prop="chapter_path" label="章节路径" min-width="160" show-overflow-tooltip />
-        <el-table-column label="内容" min-width="330">
+        <el-table-column prop="chapter_path" label="章节路径" min-width="150" show-overflow-tooltip />
+        <el-table-column label="内容" min-width="300">
           <template #default="{ row }">
-            <span class="chunk-text">{{ row.content.slice(0, 120) }}{{ row.content.length > 120 ? '…' : '' }}</span>
+            <span class="chunk-text">{{ row.content.slice(0, 100) }}{{ row.content.length > 100 ? '…' : '' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="向量" width="85">
@@ -354,8 +450,39 @@ onMounted(loadKBs)
             <el-tag :type="row.has_embedding ? 'success' : 'info'" size="small">{{ row.has_embedding ? '已向量化' : '无' }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="有效" width="80">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="row.is_active" size="small"
+              @change="(v: string | number | boolean) => toggleChunk(row as Chunk, Boolean(v))"
+            />
+          </template>
+        </el-table-column>
         <el-table-column prop="char_count" label="字符" width="70" />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button link size="small" type="primary" @click="openEditChunk(row as Chunk)">编辑</el-button>
+            <el-button link size="small" type="danger" @click="removeChunk(row as Chunk)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
+    </el-dialog>
+
+    <!-- 切片编辑 / 新增：正文变化后端会现场重新取向量 -->
+    <el-dialog v-model="chunkEditDialog" :title="chunkEditId ? `编辑切片 #${chunkEditSeq}` : '添加切片'" width="640" top="6vh">
+      <el-form label-width="90">
+        <el-form-item label="章节路径">
+          <el-input v-model="chunkEditPath" :placeholder="chunkEditId ? '' : '如 第一章 物联网概论 > 1.1 概述，可留空'" />
+        </el-form-item>
+        <el-form-item label="正文">
+          <el-input v-model="chunkEditContent" type="textarea" :rows="10" show-word-limit maxlength="4000" />
+        </el-form-item>
+        <div class="search-hint" style="margin: -6px 0 0 90px">保存后现场重新取向量；把「是否有效」关掉可临时把切片移出检索，不删数据。</div>
+      </el-form>
+      <template #footer>
+        <el-button @click="chunkEditDialog = false">取消</el-button>
+        <el-button type="primary" :loading="chunkSaving" @click="saveChunk">保存</el-button>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="outlineDialog" :title="`章节大纲：${currentDoc?.name ?? ''}`" width="560" top="6vh">

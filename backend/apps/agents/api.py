@@ -65,6 +65,7 @@ class AgentOut(Schema):
     status: str
     status_label: str
     conversation_count: int
+    message_count: int
     created_at: str
 
 
@@ -147,6 +148,7 @@ def _agent_out(a: Agent) -> dict:
         "status": a.status,
         "status_label": a.get_status_display(),
         "conversation_count": a.conversation_count,
+        "message_count": a.message_count(),
         "created_at": a.created_at.strftime("%Y-%m-%d %H:%M"),
     }
 
