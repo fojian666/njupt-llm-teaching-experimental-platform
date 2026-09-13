@@ -26,15 +26,27 @@
           </el-icon>
           <div :key="route.path" class="title">{{ route.meta.title || '' }}</div>
         </div>
-        <el-dropdown @command="onCommand">
+        <!-- 用户菜单：click 触发（hover 路过就弹卡很打扰）+ 右对齐 + 无箭头 + 紧贴 -->
+        <el-dropdown
+          trigger="click"
+          placement="bottom-end"
+          :show-arrow="false"
+          :popper-options="{ modifiers: [{ name: 'offset', options: { offset: [0, 8] } }] }"
+          popper-class="user-menu"
+          @visible-change="(v: boolean) => (menuOpen = v)"
+          @command="onCommand"
+        >
           <span class="user">
             <el-avatar :size="28">{{ userStore.name.slice(0, 1) }}</el-avatar>
             <span class="uname">{{ userStore.name }}</span>
-            <el-tag size="small" type="info">{{ userStore.info?.role_label }}</el-tag>
+            <el-tag size="small" type="info" effect="plain">{{ userStore.info?.role_label }}</el-tag>
+            <el-icon class="caret" :class="{ open: menuOpen }"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              <el-dropdown-item command="logout">
+                <el-icon><SwitchButton /></el-icon>退出登录
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -59,6 +71,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const collapsed = ref(false)
+const menuOpen = ref(false)
 
 /** el-main 是内部滚动的（overflow:auto），window 不滚，所以路由切换要手动复位 */
 const mainEl = ref<ComponentPublicInstance | null>(null)
@@ -203,16 +216,31 @@ async function onCommand(cmd: string) {
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    border-radius: 10px;
     transition: background-color var(--dur-fast) var(--ease);
 
     &:hover {
-      background: var(--bg-page);
+      background: rgba(120, 120, 128, 0.1); /* iOS 系统灰，比 #f5f7fa 清晰一档 */
+    }
+
+    &:active {
+      background: rgba(120, 120, 128, 0.18);
     }
 
     .uname {
       font-size: 14px;
+    }
+
+    /* 角标箭头：既是"可点"的提示，展开时翻转给反馈 */
+    .caret {
+      color: var(--ink-3);
+      font-size: 12px;
+      transition: transform 0.2s var(--ease);
+    }
+
+    .caret.open {
+      transform: rotate(180deg);
     }
   }
 }

@@ -26,6 +26,7 @@ import {
   Promotion,
   Search,
   Setting,
+  SwitchButton,
   User,
 } from '@element-plus/icons-vue'
 
@@ -69,6 +70,7 @@ const icons = {
   Delete,
   MoreFilled,
   Promotion,
+  SwitchButton,
 }
 
 for (const [name, component] of Object.entries(icons)) {

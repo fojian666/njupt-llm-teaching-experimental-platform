@@ -71,6 +71,30 @@ body {
   padding: 16px;
 }
 
+/* ---------- 头部用户菜单（teleport 到 body，必须写全局） ---------- */
+.user-menu.el-popper {
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.14);
+
+  .el-dropdown-menu__item {
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+
+    .el-icon {
+      margin-right: 6px;
+      color: var(--ink-3);
+    }
+
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus {
+      background: rgba(120, 120, 128, 0.1);
+      color: var(--ink-1);
+    }
+  }
+}
+
 /* ============================================================
    文本选择：外壳默认不可拖选（像原生 App），内容区显式放开
    ------------------------------------------------------------
