@@ -121,9 +121,14 @@ class Retriever:
             lexical_rank = dict(zip(scored_ids, scores))
 
         w_vector = opts.alpha if vector_rank else 0.0
-        w_lexical = (1.0 - opts.alpha) if lexical_rank else 0.0
+        # 关键词通道整体无信号（所有候选的字面重合都是 0）时不参与加权，
+        # 否则综合分会统一缩水到 α 倍，看起来像出了问题；此时排序退化为纯向量。
+        has_lexical_signal = bool(lexical_rank) and max(lexical_rank.values()) > 0
+        w_lexical = (1.0 - opts.alpha) if has_lexical_signal else 0.0
         if w_vector + w_lexical == 0:
             w_vector = 1.0
+        if opts.use_keyword and lexical_ids and not has_lexical_signal:
+            result.note = (result.note + " 问题用词与语料无字面重合，本次按纯向量排序。").strip()
 
         hits: list[ChunkHit] = []
         for cid in all_ids:
