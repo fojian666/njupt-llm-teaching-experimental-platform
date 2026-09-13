@@ -12,15 +12,19 @@
     <el-card shadow="never" class="filter">
       <el-form inline>
         <el-form-item label="分类">
+          <!-- value-key 不能省：tree-select 取值的字段是 props.nodeKey || props.valueKey || 'value'，
+               分类数据的唯一标识叫 id，不指定就会取到 undefined，筛选静默失效 -->
           <el-tree-select
             v-model="filter.category_id"
             :data="tree"
             :props="{ label: 'name', children: 'children' }"
+            value-key="id"
             check-strictly clearable placeholder="全部分类" style="width: 200px"
+            @change="load(1)"
           />
         </el-form-item>
         <el-form-item label="解析状态">
-          <el-select v-model="filter.status" clearable placeholder="全部" style="width: 140px">
+          <el-select v-model="filter.status" clearable placeholder="全部" style="width: 140px" @change="load(1)">
             <el-option v-for="(l, v) in STATUS" :key="v" :label="l" :value="v" />
           </el-select>
         </el-form-item>
@@ -103,9 +107,11 @@
       <el-form label-width="90">
         <el-form-item label="名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="分类">
+          <!-- 同样要 value-key（见上方筛选处说明），否则编辑里选的分类存不进去 -->
           <el-tree-select
             v-model="editForm.category_id" :data="tree" clearable check-strictly
-            :props="{ label: 'name', children: 'children' }" placeholder="不修改则留空" style="width: 100%"
+            :props="{ label: 'name', children: 'children' }" value-key="id"
+            placeholder="不修改则留空" style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="标签">
