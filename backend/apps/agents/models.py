@@ -58,11 +58,14 @@ class Agent(models.Model):
 
     @property
     def conversation_count(self) -> int:
-        return self.conversations.count()
+        """真实会话数：软删除的不算，否则数字虚高。"""
+        return self.conversations.filter(is_deleted=False).count()
 
     def message_count(self) -> int:
-        """累计问答条数（用户提问 + 助手回答都算），供智能体页头的使用统计展示。"""
-        return Message.objects.filter(conversation__agent=self, conversation__is_deleted=False).count()
+        """累计提问数：只数用户消息，且排除已删除会话。"""
+        return Message.objects.filter(
+            conversation__agent=self, conversation__is_deleted=False, role="user"
+        ).count()
 
 
 class Conversation(models.Model):

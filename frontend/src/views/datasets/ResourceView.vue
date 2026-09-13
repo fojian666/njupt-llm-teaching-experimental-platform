@@ -19,7 +19,7 @@
             :data="tree"
             :props="{ label: 'name', children: 'children' }"
             value-key="id"
-            check-strictly clearable placeholder="全部分类" style="width: 200px"
+            check-strictly clearable placeholder="全部分类" style="width: 170px"
             @change="load(1)"
           />
         </el-form-item>
@@ -54,7 +54,7 @@
           />
         </el-form-item>
         <el-form-item label="关键词">
-          <el-input v-model="filter.keyword" placeholder="名称 / 来源说明" clearable style="width: 180px" @keyup.enter="load(1)" />
+          <el-input v-model="filter.keyword" placeholder="名称 / 来源说明" clearable style="width: 160px" @keyup.enter="load(1)" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="load(1)">查询</el-button>
@@ -435,6 +435,17 @@ onMounted(async () => {
   padding: 8px 12px;
   background: #f0f7ff;
   border-radius: 8px;
+}
+
+/* 筛选项较多：统一间距让它自动折成整齐的两行，而不是挤在一行里互相顶 */
+.filter :deep(.el-form--inline .el-form-item) {
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+.filter :deep(.el-form-item__label) {
+  color: var(--ink-3);
+  font-size: 13px;
 }
 
 .preview {

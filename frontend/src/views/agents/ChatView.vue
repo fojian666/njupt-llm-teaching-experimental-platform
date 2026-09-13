@@ -40,7 +40,6 @@
         </div>
         <div class="head-right">
           <span class="muted">对话 {{ agent?.conversation_count ?? 0 }} · 提问 {{ agent?.message_count ?? 0 }}</span>
-          <el-link :underline="false" href="/api/docs" target="_blank" class="api-link">API 文档</el-link>
         </div>
       </div>
 
@@ -826,17 +825,12 @@ onMounted(loadAll)
     .head-right {
       display: flex;
       align-items: center;
-      gap: 12px;
       flex-shrink: 0;
 
       .muted {
         color: var(--ink-3);
         font-size: 12px;
         font-variant-numeric: tabular-nums;
-      }
-
-      .api-link {
-        font-size: 12px;
       }
     }
 
