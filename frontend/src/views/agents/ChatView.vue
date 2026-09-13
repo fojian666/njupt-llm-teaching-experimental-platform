@@ -14,6 +14,9 @@
           @click="openConversation(c.id)"
         >
           <span class="ctitle">{{ c.title || '新会话' }}</span>
+          <button class="conv-del" title="删除会话" @click.stop="delConversation(c)">
+            <el-icon><Delete /></el-icon>
+          </button>
         </div>
         <el-empty v-if="!conversations.length" description="暂无历史" :image-size="54" />
       </div>
@@ -192,7 +195,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 // hljs 走 core + 按需注册：整包会把 190+ 种语言一起打进前端（约 1MB）。
 // 这里按“物联网/计算机类课程可能出现的代码”挑一组；要加语言就 import + register 一行。
@@ -505,6 +508,30 @@ async function copyAnswer(m: ChatMessage) {
   }
 }
 
+/** 删除会话（后端按归属校验 + 软删除）。删的是当前会话时，先把它从界面上摘掉 */
+async function delConversation(c: Conversation) {
+  try {
+    await ElMessageBox.confirm(`删除会话「${c.title || '新会话'}」？删除后不可恢复。`, '删除会话', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return // 用户取消
+  }
+  await agentApi.removeConversation(c.id)
+  conversations.value = conversations.value.filter((x) => x.id !== c.id)
+  if (conversationId.value === c.id) {
+    conversationId.value = 0
+    messages.value = []
+    citations.value = []
+    notice.value = ''
+    // 还有别的会话就接着看第一个，否则停在欢迎页
+    if (conversations.value.length) await openConversation(conversations.value[0].id)
+  }
+  ElMessage.success('会话已删除')
+}
+
 onMounted(loadAll)
 </script>
 
@@ -543,6 +570,7 @@ onMounted(loadAll)
 
   /* 选中态用圆角灰底（iOS 列表风格），不用左侧色条 —— 色条太"管理后台"了 */
   .conv-item {
+    position: relative;
     display: flex;
     align-items: center;
     padding: 9px 10px;
@@ -564,9 +592,42 @@ onMounted(loadAll)
     }
 
     .ctitle {
+      flex: 1;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      /* 右侧常留出删除钮的位置，避免标题文字被压在按钮底下 */
+      padding-right: 20px;
+    }
+
+    /* 删除钮：悬停才出现，像 iOS 列表的滑出操作 */
+    .conv-del {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: grid;
+      place-items: center;
+      padding: 4px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink-3);
+      font-size: 13px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s var(--ease), color 0.15s var(--ease),
+        background-color 0.15s var(--ease);
+
+      &:hover {
+        color: #e5484d;
+        background: rgba(229, 72, 77, 0.1);
+      }
+    }
+
+    &:hover .conv-del {
+      opacity: 1;
     }
   }
 

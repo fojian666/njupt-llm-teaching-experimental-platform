@@ -14,6 +14,7 @@ import {
   CircleCloseFilled,
   Collection,
   Cpu,
+  Delete,
   DocumentCopy,
   Expand,
   Files,
@@ -65,6 +66,7 @@ const icons = {
   CircleCheckFilled,
   CircleClose,
   CircleCloseFilled,
+  Delete,
   MoreFilled,
   Promotion,
 }
