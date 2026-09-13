@@ -139,6 +139,25 @@ RELOAD=1 ./start.sh   # 后端代码热重载（默认关闭）
 | `演示脚本.md` | 7 分钟视频演示的分镜、话术、预置问题与兜底方案 |
 | `backend/reembed_all.py` | 全量重建切片向量（换向量模型后用） |
 
+## 关于 Redis / Celery（高并发预留）
+
+当前**不依赖 Redis 也能完整运行**：文档解析、切片、向量化这类长任务由
+`apps/common/tasks.py#run_task` 调度，默认用守护线程就地执行、请求立即返回，
+前端靠轮询 `parse_status` 看进度——因此执行方式对前端完全透明。
+
+任务队列的开关已预留（`apps/common/tasks.py` 的 Celery 分支含 broker 失联自动降级）：
+
+```
+TASKS_USE_CELERY=true    # .env 里打开即走 Celery（还需补 celery app 与 @shared_task 注册）
+TASKS_IN_THREAD=false    # 关掉线程兜底，强制走队列/同步
+```
+
+**什么时候值得上**：多人同时上传大文件解析、需要任务重试/优先级/可观测时。
+单机演示与小班教学场景下，线程方案足够，少两个常驻组件（broker + worker）。
+另外，真正的生产并发瓶颈顺序是：① `runserver` 换 gunicorn/uvicorn 多 worker；
+② LLM/嵌入上游的吞吐与限流；③ Postgres 连接数（考虑 pgbouncer）；
+④ 才是任务队列与缓存——先看 ①②③，不要从 Redis 开始优化。
+
 ## 已知边界
 
 - **pgvector 安装**：Homebrew 的 pgvector bottle 可能对应与其捆绑的 PG 版本；若你的 PG16 是 brew 装的而
