@@ -11,7 +11,7 @@ const tab = ref('records')
 const records = ref<QARecord[]>([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 const loading = ref(false)
 const filters = reactive({
   keyword: '', feedback: '', only_error: false,
@@ -25,7 +25,7 @@ async function loadRecords() {
   try {
     const r = await auditApi.records({
       page: page.value,
-      page_size: pageSize,
+      page_size: pageSize.value,
       keyword: filters.keyword || undefined,
       feedback: filters.feedback || undefined,
       only_error: filters.only_error || undefined,
@@ -213,9 +213,9 @@ function switchTab(name: string | number) {
           </el-table-column>
         </el-table>
         <el-pagination
-          v-model:current-page="page" class="mt16"
-          layout="total, prev, pager, next" :total="total" :page-size="pageSize"
-          @current-change="loadRecords"
+          v-model:current-page="page" v-model:page-size="pageSize" class="mt16"
+          layout="total, sizes, prev, pager, next" :total="total" :page-sizes="[10, 20, 50, 100]"
+          @current-change="loadRecords" @size-change="loadRecords"
         />
       </el-tab-pane>
 

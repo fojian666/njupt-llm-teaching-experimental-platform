@@ -62,7 +62,7 @@
         <el-table-column prop="created_at" label="上传时间" width="150" />
         <el-table-column label="操作" width="230" fixed="right">
           <template #default="{ row }">
-            <el-button link size="small" type="primary" :disabled="row.parse_status === 'parsing'" @click="parse(row as DataResource)">解析</el-button>
+            <el-button link size="small" type="primary" :loading="parsingId === row.id" :disabled="row.parse_status === 'parsing'" @click="parse(row as DataResource)">解析</el-button>
             <el-button link size="small" @click="preview(row as DataResource)">详情</el-button>
             <el-button link size="small" @click="openEdit(row as DataResource)">编辑</el-button>
             <el-button link size="small" type="danger" @click="del(row as DataResource)">删除</el-button>
@@ -75,10 +75,12 @@
         <el-button size="small" :disabled="!selected.length" @click="batchDel">批量删除</el-button>
         <el-pagination
           v-model:current-page="page"
-          :page-size="pageSize"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
           :total="total"
-          layout="total, prev, pager, next"
+          layout="total, sizes, prev, pager, next"
           @current-change="load()"
+          @size-change="load(1)"
         />
       </div>
     </el-card>
@@ -154,7 +156,7 @@ const loading = ref(false)
 const uploading = ref(false)
 const total = ref(0)
 const page = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 
 const filter = reactive({ category_id: undefined as number | undefined, status: '', keyword: '' })
 
@@ -162,7 +164,7 @@ async function load(p = page.value) {
   page.value = p
   loading.value = true
   try {
-    const res = await resourceApi.list({ ...filter, page: p, page_size: pageSize })
+    const res = await resourceApi.list({ ...filter, page: p, page_size: pageSize.value })
     rows.value = res.items
     total.value = res.total
   } finally {
@@ -189,10 +191,16 @@ async function doUpload(file: File) {
   return false // 阻止 el-upload 的默认请求，由我们自己发
 }
 
+const parsingId = ref<number | null>(null)
 async function parse(row: DataResource) {
-  await resourceApi.parse(row.id)
-  ElMessage.success('已开始解析，稍后刷新查看状态')
-  setTimeout(() => load(), 1500)
+  parsingId.value = row.id
+  try {
+    await resourceApi.parse(row.id)
+    ElMessage.success('已开始解析，稍后刷新查看状态')
+    setTimeout(() => load(), 1500)
+  } finally {
+    setTimeout(() => (parsingId.value = null), 1600)
+  }
 }
 
 async function preview(row: DataResource) {

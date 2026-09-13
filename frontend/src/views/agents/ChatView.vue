@@ -84,6 +84,9 @@
                   <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
                     <el-icon><DocumentCopy /></el-icon>
                   </el-button>
+                  <el-button v-if="m.is_error && i === messages.length - 1" link size="small" @click="retry(m)">
+                    重试
+                  </el-button>
                   <template v-if="m.model_name && i === messages.length - 1">
                     <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
                     <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
@@ -149,6 +152,11 @@
                   <el-checkbox v-model="retrievalFirst" size="small">检索优先</el-checkbox>
                   <el-checkbox v-model="useKeyword" size="small">关键词召回</el-checkbox>
                 </div>
+                <div class="param-hints">
+                  <p>top_k：每次送入提示词的片段数，越大覆盖越广，也越可能带入无关内容。</p>
+                  <p>检索优先：开启后严格依据检索资料作答，资料不足时如实说明。</p>
+                  <p>关键词召回：关闭后只按向量语义检索，适合不含专业术语的口语化问法。</p>
+                </div>
               </div>
             </el-popover>
 
@@ -194,7 +202,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 // hljs 走 core + 按需注册：整包会把 190+ 种语言一起打进前端（约 1MB）。
@@ -243,6 +251,7 @@ import { agentGradient } from '@/utils/agentColor'
 import type { Agent, ChatMessage, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
 const agentId = Number(route.params.id)
 
 const escapeHtml = (s: string): string =>
@@ -310,6 +319,11 @@ async function loadAll() {
   llmOptions.value = llmRes.items
   modelId.value = llmRes.default_id
   topK.value = agent.value.top_k
+  // 深链支持：?c=<会话id> 直接恢复该会话
+  const wanted = Number(route.query.c)
+  if (wanted && conversations.value.some((c) => c.id === wanted)) {
+    await openConversation(wanted)
+  }
   retrievalFirst.value = agent.value.retrieval_first
 }
 
@@ -323,6 +337,7 @@ function newConversation() {
   citations.value = []
   notice.value = ''
   resetScrollState()
+  router.replace({ query: { ...route.query, c: undefined } })
 }
 
 async function openConversation(id: number) {
@@ -332,6 +347,8 @@ async function openConversation(id: number) {
   citations.value = last?.citations ?? []
   resetScrollState()
   nextTick(() => scrollToBottom(false))
+  // 会话写入 URL，刷新 / 分享链接后能直接回到这个会话
+  router.replace({ query: { ...route.query, c: String(id) } })
 }
 
 // ---------- 滚动策略 ----------
@@ -508,6 +525,18 @@ async function copyAnswer(m: ChatMessage) {
   }
 }
 
+/** 出错回答的重试：按上一条用户提问重新生成。
+ *  出错消息只在前端摘除，服务端记录保留，刷新后会重新出现在历史里。 */
+async function retry(m: ChatMessage) {
+  if (streaming.value) return
+  const idx = messages.value.indexOf(m)
+  const userMsg = [...messages.value.slice(0, idx)].reverse().find((x) => x.role === 'user')
+  if (!userMsg) return
+  messages.value = messages.value.slice(0, messages.value.indexOf(userMsg))
+  input.value = userMsg.content
+  await send()
+}
+
 /** 删除会话（后端按归属校验 + 软删除）。删的是当前会话时，先把它从界面上摘掉 */
 async function delConversation(c: Conversation) {
   try {
@@ -528,6 +557,7 @@ async function delConversation(c: Conversation) {
     notice.value = ''
     // 还有别的会话就接着看第一个，否则停在欢迎页
     if (conversations.value.length) await openConversation(conversations.value[0].id)
+    else router.replace({ query: { ...route.query, c: undefined } })
   }
   ElMessage.success('会话已删除')
 }
@@ -1090,6 +1120,23 @@ onMounted(loadAll)
 }
 
 .param-panel {
+  .param-hints {
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line-soft);
+
+    p {
+      margin: 0 0 6px;
+      color: var(--ink-3);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+  }
+
   .param-item {
     margin-bottom: 14px;
 

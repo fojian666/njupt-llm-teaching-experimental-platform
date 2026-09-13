@@ -73,7 +73,7 @@ function selectKB(kb: KnowledgeBase) {
 const docs = ref<KnowledgeDoc[]>([])
 const docTotal = ref(0)
 const page = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 const docsLoading = ref(false)
 const docKeyword = ref('')
 
@@ -81,7 +81,7 @@ async function loadDocs() {
   if (!current.value) return
   docsLoading.value = true
   try {
-    const r = await kbApi.docs(current.value.id, { page: page.value, page_size: pageSize, keyword: docKeyword.value })
+    const r = await kbApi.docs(current.value.id, { page: page.value, page_size: pageSize.value, keyword: docKeyword.value })
     docs.value = r.items
     docTotal.value = r.total
   } finally { docsLoading.value = false }
@@ -256,7 +256,7 @@ onMounted(loadKBs)
           </template>
         </el-table-column>
       </el-table>
-      <el-pagination v-model:current-page="page" class="mt16" layout="total, prev, pager, next" :total="docTotal" :page-size="pageSize" @current-change="loadDocs" />
+      <el-pagination v-model:current-page="page" v-model:page-size="pageSize" class="mt16" layout="total, sizes, prev, pager, next" :total="docTotal" :page-sizes="[10, 20, 50, 100]" @current-change="loadDocs" @size-change="loadDocs" />
     </el-card>
 
     <!-- 检索调试 -->
@@ -279,6 +279,10 @@ onMounted(loadKBs)
           <el-button type="primary" :loading="searching" @click="doSearch">检索</el-button>
         </el-form-item>
       </el-form>
+      <div class="search-hint">
+        α 从 0 到 1：越大越偏向向量语义匹配，越小越偏向关键词匹配。关键词召回适合问题里
+        带专业术语的情况，向量召回对不含术语的口语化问法更稳。Top K 是最终取回的片段数。
+      </div>
       <div v-if="searchMeta.note" class="search-note">向量候选 {{ searchMeta.vector_count }} 条 · 关键词候选 {{ searchMeta.lexical_count }} 条 · {{ searchMeta.note }}</div>
       <div v-for="(h, i) in hits" :key="h.chunk_id" class="hit-item">
         <div class="hit-head">
@@ -381,6 +385,7 @@ onMounted(loadKBs)
 .kb-actions { position: absolute; right: 10px; top: 12px; }
 .muted { color: var(--el-text-color-secondary); font-size: 12px; }
 .search-note { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 10px; }
+.search-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.7; margin: 0 0 10px; }
 .hit-item { border: 1px solid var(--el-border-color-lighter); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
 .hit-head { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
 .hit-body { font-size: 13px; color: var(--el-text-color-regular); line-height: 1.6; }
