@@ -9,48 +9,48 @@
     </div>
 
     <el-row :gutter="16" v-loading="loading">
-      <el-col v-for="(a, idx) in agents" :key="a.id" :span="8" style="margin-bottom: 16px">
-        <el-card shadow="hover" class="agent-card" :style="{ '--i': Math.min(idx, 8) }">
-          <div class="head">
-            <el-avatar :size="44" class="avatar">{{ a.name.slice(0, 1) }}</el-avatar>
-            <div class="info">
-              <div class="name">
-                {{ a.name }}
-                <el-tag v-if="userStore.isManager" :type="a.status === 'published' ? 'success' : 'info'" size="small">
-                  {{ a.status_label }}
-                </el-tag>
-              </div>
-              <div class="desc">{{ a.description || '暂无简介' }}</div>
-            </div>
-          </div>
-          <div class="kbs">
-            <el-tag v-for="k in a.knowledge_base_names" :key="k" size="small" type="success" effect="plain">
-              {{ k }}
-            </el-tag>
-            <el-tag v-if="!a.knowledge_base_names.length" size="small" type="info" effect="plain">未挂知识库</el-tag>
-          </div>
-          <div class="foot">
-            <span class="muted">模型：{{ a.model_name }}</span>
-            <div class="btns">
-              <template v-if="userStore.isManager">
-                <el-button size="small" @click="openEdit(a)">编辑</el-button>
-                <el-dropdown trigger="click" @command="(cmd: string) => onMore(cmd, a)">
-                  <el-button size="small" type="primary" plain>
-                    更多<el-icon><ArrowDown /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item v-if="a.status !== 'published'" command="publish">发布上架</el-dropdown-item>
-                      <el-dropdown-item v-else command="unpublish">下架</el-dropdown-item>
-                      <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+      <el-col v-for="(a, idx) in agents" :key="a.id" :xs="24" :sm="12" :md="8" :lg="6" class="agent-col">
+        <div
+          class="agent-card"
+          :class="{ draft: a.status !== 'published' && userStore.isManager }"
+          :style="{ '--i': Math.min(idx, 8), '--g1': gradient(a.id).from, '--g2': gradient(a.id).to }"
+          @click="openChat(a)"
+        >
+          <!-- 管理操作只在悬停时出现，平时让卡片保持干净 -->
+          <div v-if="userStore.isManager" class="tools" @click.stop>
+            <el-button size="small" text @click="openEdit(a)">编辑</el-button>
+            <el-dropdown trigger="click" @command="(cmd: string) => onMore(cmd, a)">
+              <el-button size="small" text><el-icon><MoreFilled /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="a.status !== 'published'" command="publish">发布上架</el-dropdown-item>
+                  <el-dropdown-item v-else command="unpublish">下架</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                </el-dropdown-menu>
               </template>
-              <el-button type="primary" size="small" @click="$router.push(`/agents/${a.id}/chat`)">开始对话</el-button>
-            </div>
+            </el-dropdown>
           </div>
-        </el-card>
+
+          <div class="avatar">{{ a.name.slice(0, 1) }}</div>
+
+          <div class="name">
+            {{ a.name }}
+            <span v-if="userStore.isManager" class="status" :class="a.status">
+              <i class="dot" />{{ a.status_label }}
+            </span>
+          </div>
+          <div class="desc">{{ a.description || '暂无简介' }}</div>
+
+          <div class="kbs">
+            <span v-for="k in a.knowledge_base_names" :key="k" class="kb-chip">{{ k }}</span>
+            <span v-if="!a.knowledge_base_names.length" class="kb-chip empty">未挂知识库</span>
+          </div>
+
+          <div class="foot">
+            <span class="model">{{ a.model_name }}</span>
+            <span class="go">开始对话<el-icon><ArrowRight /></el-icon></span>
+          </div>
+        </div>
       </el-col>
     </el-row>
 
@@ -95,14 +95,22 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { agentApi } from '@/api/agents'
 import { kbApi } from '@/api/datasets'
 import { configApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
+import { agentGradient as gradient } from '@/utils/agentColor'
 import type { Agent, KnowledgeBase, LlmOption } from '@/types'
 
+const router = useRouter()
 const userStore = useUserStore()
+
+function openChat(a: Agent) {
+  router.push(`/agents/${a.id}/chat`)
+}
+
 const agents = ref<Agent[]>([])
 const keyword = ref('')
 const loading = ref(false)
@@ -222,70 +230,154 @@ onMounted(async () => {
   }
 }
 
+.agent-col {
+  margin-bottom: 16px;
+}
+
+/* 卡片：不用 el-card，自己控圆角/阴影/悬停，iOS 那种"应用图标 + 分组卡片"的手感 */
 .agent-card {
-  /* 错峰入场：--i 由模板按序号注入，超过第 8 张不再累加延迟，避免长列表等太久。
-     填充用 backwards 而不是 both —— 动画填充值在层叠里优先于普通声明，
-     用 both 会把下面 :hover 的 transform 压掉，卡片就抬不起来了。 */
+  position: relative;
+  height: 100%;
+  padding: 20px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  cursor: pointer;
+  transition: transform 0.24s var(--ease), box-shadow 0.24s var(--ease);
   animation: card-in 0.4s var(--ease) backwards;
   animation-delay: calc(var(--i, 0) * 45ms);
-  transition: transform 0.22s var(--ease);
 
   &:hover {
-    transform: translateY(-3px);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(16, 24, 40, 0.12);
   }
 
-  .head {
+  /* 草稿态整体弱化，一眼能分辨 */
+  &.draft {
+    background: #fcfcfd;
+    box-shadow: inset 0 0 0 1px var(--line-soft), 0 1px 2px rgba(16, 24, 40, 0.03);
+  }
+
+  .tools {
+    position: absolute;
+    top: 12px;
+    right: 12px;
     display: flex;
-    gap: 12px;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+  }
 
-    .avatar {
-      background: linear-gradient(135deg, #409eff, #6a5acd);
-      font-size: 18px;
-      flex-shrink: 0;
-      box-shadow: 0 3px 10px rgba(64, 158, 255, 0.28);
-    }
+  &:hover .tools {
+    opacity: 1;
+    transform: none;
+  }
 
-    .name {
-      font-size: 16px;
-      font-weight: 600;
-      display: flex;
+  /* 头像做成 iOS 应用图标那种 squirle：大圆角 + 双色渐变 + 极淡的内高光 */
+  .avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px rgba(16, 24, 40, 0.14);
+  }
+
+  .name {
+    margin-top: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink-1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .status {
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-    }
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--ink-3);
 
-    .desc {
-      color: #909399;
-      font-size: 13px;
-      margin-top: 4px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #c0c4cc;
+      }
+
+      &.published .dot {
+        background: #34c759; /* iOS systemGreen */
+      }
     }
+  }
+
+  .desc {
+    margin-top: 6px;
+    min-height: 40px;
+    color: var(--ink-3);
+    font-size: 13px;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .kbs {
-    margin: 14px 0;
+    margin: 14px 0 16px;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+
+  .kb-chip {
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--brand-ink);
+    background: #eef5ff;
+
+    &.empty {
+      color: var(--ink-3);
+      background: #f2f3f5;
+    }
   }
 
   .foot {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
 
-    .btns {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .muted {
-      color: #909399;
+    .model {
       font-size: 12px;
+      color: var(--ink-3);
     }
+
+    .go {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 13px;
+      color: var(--brand);
+      opacity: 0.72;
+      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    }
+  }
+
+  &:hover .foot .go {
+    opacity: 1;
+    transform: translateX(2px);
   }
 }
 </style>

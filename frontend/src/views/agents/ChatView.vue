@@ -2,7 +2,9 @@
   <div class="chat-wrap">
     <!-- 左侧：会话历史 -->
     <div class="side">
-      <el-button type="primary" class="new-btn" @click="newConversation">新建会话</el-button>
+      <div class="side-head">
+        <el-button type="primary" class="new-btn" @click="newConversation">新建会话</el-button>
+      </div>
       <div class="conv-list">
         <div
           v-for="c in conversations"
@@ -11,55 +13,82 @@
           :class="{ active: c.id === conversationId }"
           @click="openConversation(c.id)"
         >
-          <el-icon><ChatDotRound /></el-icon>
           <span class="ctitle">{{ c.title || '新会话' }}</span>
         </div>
-        <el-empty v-if="!conversations.length" description="暂无历史" :image-size="60" />
+        <el-empty v-if="!conversations.length" description="暂无历史" :image-size="54" />
       </div>
     </div>
 
     <!-- 中间：对话区 -->
     <div class="main">
       <div class="chat-head">
-        <div>
-          <b>{{ agent?.name || '…' }}</b>
-          <span class="muted">{{ agent?.description }}</span>
+        <div class="who">
+          <div class="mini-avatar" :style="{ '--g1': agentColor.from, '--g2': agentColor.to }">
+            {{ (agent?.name || '智').slice(0, 1) }}
+          </div>
+          <div class="who-text">
+            <b>{{ agent?.name || '…' }}</b>
+            <span class="muted">{{ agent?.description }}</span>
+          </div>
         </div>
       </div>
 
       <div class="messages-wrap">
         <div ref="scrollEl" class="messages" @scroll.passive="onScroll">
+          <!-- 欢迎区：大头像 + 建议问题做成胶囊 -->
           <div v-if="!messages.length" class="welcome">
+            <div class="big-avatar" :style="{ '--g1': agentColor.from, '--g2': agentColor.to }">
+              {{ (agent?.name || '智').slice(0, 1) }}
+            </div>
             <h3>{{ agent?.welcome_message }}</h3>
             <div class="sug">
-              <el-button v-for="q in agent?.suggested_questions || []" :key="q" size="small" plain @click="ask(q)">
+              <button v-for="q in agent?.suggested_questions || []" :key="q" class="sug-chip" @click="ask(q)">
                 {{ q }}
-              </el-button>
+              </button>
             </div>
           </div>
 
           <div v-for="(m, i) in messages" :key="m.id ? `m${m.id}` : `t${i}`" class="msg" :class="m.role">
-            <div class="bubble">
-              <!-- 检索过程：让「怎么找到这几段原文的」在界面上可见，而不是黑盒 -->
+            <!-- 助手：头像 + 无气泡正文（现代 agent 的做法，正文直接铺在页面上更好读） -->
+            <div
+              v-if="m.role === 'assistant'"
+              class="msg-avatar"
+              :style="{ '--g1': agentColor.from, '--g2': agentColor.to }"
+            >
+              {{ (agent?.name || '智').slice(0, 1) }}
+            </div>
+
+            <div class="body">
               <div v-if="m.retrieval" class="retrieval-bar">
                 <el-icon><Search /></el-icon>
                 <span>向量召回 <b>{{ m.retrieval.vector }}</b> 条</span>
                 <span v-if="m.retrieval.useKeyword">· 关键词召回 <b>{{ m.retrieval.lexical }}</b> 条</span>
                 <span v-else class="off">· 关键词召回已关闭</span>
-                <span>→ 融合取前 <b>{{ m.retrieval.fused }}</b> 条送入提示词</span>
+                <span>→ 融合取前 <b>{{ m.retrieval.fused }}</b> 条</span>
               </div>
-              <div v-if="m.role === 'assistant' && m.reasoning" class="reasoning">{{ m.reasoning }}</div>
-              <div class="md answer-md" :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }" v-html="render(m.content)"></div>
-              <div v-if="m.role === 'assistant' && m.model_name && i === messages.length - 1 && !streaming" class="meta">
-                {{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template>
-                <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
-                <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+
+              <div v-if="m.reasoning" class="reasoning">{{ m.reasoning }}</div>
+
+              <div
+                class="md answer-md"
+                :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }"
+                v-html="render(m.content)"
+              ></div>
+
+              <div v-if="m.role === 'assistant' && !streaming" class="msg-actions">
+                <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
+                  <el-icon><DocumentCopy /></el-icon>
+                </el-button>
+                <template v-if="m.model_name && i === messages.length - 1">
+                  <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
+                  <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
+                  <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+                </template>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 用户上翻看历史时自动跟滚会让出，给一个回底部的出口 -->
         <transition name="jump">
           <el-button v-if="showJump" class="jump-btn" circle @click="jumpToBottom">
             <el-icon><ArrowDownBold /></el-icon>
@@ -69,49 +98,55 @@
 
       <div v-if="notice" class="notice">{{ notice }}</div>
 
+      <!-- 输入区：浮动圆角卡片 + 右下角圆形发送键 -->
       <div class="input-area">
-        <el-input
-          v-model="input"
-          type="textarea"
-          :rows="3"
-          resize="none"
-          :disabled="streaming"
-          placeholder="输入问题，Enter 发送 / Shift+Enter 换行"
-          @keydown.enter.exact.prevent="send"
-        />
-        <div class="opts">
-          <el-popover placement="top-start" :width="430" trigger="click">
-            <template #reference>
-              <el-button size="small">
-                <el-icon><Setting /></el-icon>
-                <span class="opt-label">{{ currentModelLabel }} · {{ kbIds.length ? `${kbIds.length} 个知识库` : '未选知识库' }} · top_k {{ topK }}</span>
-              </el-button>
-            </template>
-            <div class="param-panel">
-              <div class="param-item">
-                <div class="param-label">对话模型</div>
-                <el-select v-model="modelId" placeholder="默认模型" size="small" clearable style="width: 100%">
-                  <el-option v-for="m in llmOptions" :key="m.id" :label="m.name" :value="m.id" />
-                </el-select>
+        <div class="composer">
+          <el-input
+            v-model="input"
+            type="textarea"
+            :rows="2"
+            resize="none"
+            :disabled="streaming"
+            placeholder="输入问题，Enter 发送 / Shift+Enter 换行"
+            @keydown.enter.exact.prevent="send"
+          />
+          <div class="composer-bar">
+            <el-popover placement="top-start" :width="430" trigger="click">
+              <template #reference>
+                <button class="param-btn">
+                  <el-icon><Setting /></el-icon>
+                  <span class="opt-label">{{ currentModelLabel }} · {{ kbIds.length ? `${kbIds.length} 个知识库` : '未选知识库' }} · top_k {{ topK }}</span>
+                </button>
+              </template>
+              <div class="param-panel">
+                <div class="param-item">
+                  <div class="param-label">对话模型</div>
+                  <el-select v-model="modelId" placeholder="默认模型" size="small" clearable style="width: 100%">
+                    <el-option v-for="m in llmOptions" :key="m.id" :label="m.name" :value="m.id" />
+                  </el-select>
+                </div>
+                <div class="param-item">
+                  <div class="param-label">知识库（可多选）</div>
+                  <el-select v-model="kbIds" multiple collapse-tags size="small" style="width: 100%">
+                    <el-option v-for="k in kbs" :key="k.id" :label="k.name" :value="k.id" />
+                  </el-select>
+                </div>
+                <div class="param-item">
+                  <div class="param-label">检索条数 top_k：{{ topK }}</div>
+                  <el-slider v-model="topK" :min="1" :max="20" size="small" />
+                </div>
+                <div class="param-item param-switches">
+                  <el-checkbox v-model="retrievalFirst" size="small">检索优先</el-checkbox>
+                  <el-checkbox v-model="useKeyword" size="small">关键词召回</el-checkbox>
+                </div>
               </div>
-              <div class="param-item">
-                <div class="param-label">知识库（可多选）</div>
-                <el-select v-model="kbIds" multiple collapse-tags size="small" style="width: 100%">
-                  <el-option v-for="k in kbs" :key="k.id" :label="k.name" :value="k.id" />
-                </el-select>
-              </div>
-              <div class="param-item">
-                <div class="param-label">检索条数 top_k：{{ topK }}</div>
-                <el-slider v-model="topK" :min="1" :max="20" size="small" />
-              </div>
-              <div class="param-item param-switches">
-                <el-checkbox v-model="retrievalFirst" size="small">检索优先</el-checkbox>
-                <el-checkbox v-model="useKeyword" size="small">关键词召回</el-checkbox>
-              </div>
-            </div>
-          </el-popover>
-          <el-button v-if="streaming" type="warning" @click="stop">停止生成</el-button>
-          <el-button v-else type="primary" :disabled="!input.trim()" @click="send">发送</el-button>
+            </el-popover>
+
+            <el-button v-if="streaming" class="stop-btn" type="warning" plain @click="stop">停止生成</el-button>
+            <button v-else class="send-btn" :disabled="!input.trim()" @click="send">
+              <el-icon><Promotion /></el-icon>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -120,7 +155,7 @@
     <div class="side right">
       <div class="cite-head">
         <b>检索来源</b>
-        <el-tag size="small" type="info">{{ citations.length }}</el-tag>
+        <span class="count">{{ citations.length }}</span>
       </div>
       <div class="cite-list">
         <div
@@ -138,7 +173,7 @@
           <div class="snippet">{{ c.snippet }}</div>
           <div class="scores">
             综合 {{ c.score.toFixed(3) }} · 向量 {{ c.vector_score.toFixed(3) }} · 关键词 {{ c.lexical_score.toFixed(3) }}
-            <el-tag v-if="c.cited" size="small" type="success">已引用</el-tag>
+            <span v-if="c.cited" class="cited-tag">已引用</span>
           </div>
         </div>
         <el-empty v-if="!citations.length" description="尚未检索" :image-size="60" />
@@ -194,6 +229,7 @@ import { agentApi } from '@/api/agents'
 import { kbApi } from '@/api/datasets'
 import { configApi } from '@/api/auth'
 import { streamChat } from '@/api/sse'
+import { agentGradient } from '@/utils/agentColor'
 import type { Agent, ChatMessage, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
 
 const route = useRoute()
@@ -230,6 +266,8 @@ function render(text: string) {
 }
 
 const agent = ref<Agent | null>(null)
+/** 与广场卡片同色：同一个智能体在哪儿看都是同一个底色 */
+const agentColor = computed(() => agentGradient(agent.value?.id))
 const conversations = ref<Conversation[]>([])
 const conversationId = ref<number | null>(null)
 const messages = ref<ChatMessage[]>([])
@@ -450,6 +488,16 @@ async function rate(m: ChatMessage, rating: 'like' | 'dislike') {
   ElMessage.success('感谢反馈')
 }
 
+/** 一键复制回答正文（复制的是 markdown 原文，粘到别处仍可再渲染） */
+async function copyAnswer(m: ChatMessage) {
+  try {
+    await navigator.clipboard.writeText(m.content)
+    ElMessage.success('已复制回答')
+  } catch {
+    ElMessage.warning('浏览器拒绝了剪贴板访问，请手动选中复制')
+  }
+}
+
 onMounted(loadAll)
 </script>
 
@@ -465,41 +513,47 @@ onMounted(loadAll)
 }
 
 .side {
-  width: 240px;
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  width: 232px;
+  background: #fbfbfd; /* iOS 侧栏那种极淡的灰 */
+  border-right: 1px solid rgba(60, 60, 67, 0.08);
   display: flex;
   flex-direction: column;
 
+  .side-head {
+    padding: 12px;
+  }
+
   .new-btn {
-    margin: 12px;
+    width: 100%;
+    border-radius: 10px;
   }
 
   .conv-list {
     flex: 1;
     overflow-y: auto;
+    padding: 0 8px 12px;
   }
 
+  /* 选中态用圆角灰底（iOS 列表风格），不用左侧色条 —— 色条太"管理后台"了 */
   .conv-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
+    padding: 9px 10px;
+    margin-bottom: 2px;
+    border-radius: 9px;
     cursor: pointer;
     font-size: 13px;
     color: var(--ink-2);
-    border-left: 2px solid transparent;
-    transition: background-color 0.18s var(--ease), color 0.18s var(--ease),
-      border-color 0.18s var(--ease);
+    transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
 
     &:hover {
-      background: var(--bg-page);
+      background: rgba(120, 120, 128, 0.08);
     }
 
     &.active {
-      background: #ecf5ff;
-      color: var(--brand);
-      border-left-color: var(--brand);
+      background: rgba(0, 122, 255, 0.1);
+      color: var(--brand-ink);
+      font-weight: 500;
     }
 
     .ctitle {
@@ -510,27 +564,40 @@ onMounted(loadAll)
   }
 
   &.right {
-    width: 320px;
+    width: 316px;
+    background: #fbfbfd;
     border-right: none;
-    border-left: 1px solid #e4e7ed;
+    border-left: 1px solid rgba(60, 60, 67, 0.08);
 
     .cite-head {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 14px;
-      border-bottom: 1px solid #e4e7ed;
+      padding: 16px 16px 10px;
+      border-bottom: none;
+
+      .count {
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: rgba(120, 120, 128, 0.12);
+        color: var(--ink-2);
+        font-size: 12px;
+      }
     }
 
     .cite-list {
       flex: 1;
       overflow-y: auto;
-      padding: 12px;
+      padding: 4px 12px 16px;
     }
   }
 }
 
 .citation-item {
+  border-radius: 12px;
+  border-color: rgba(60, 60, 67, 0.1);
+  background: #fff;
+
   .cite-top {
     display: flex;
     gap: 6px;
@@ -547,14 +614,14 @@ onMounted(loadAll)
 
   .path {
     margin: 4px 0;
-    color: #409eff;
+    color: var(--brand-ink);
     font-size: 12px;
   }
 
   .snippet {
-    color: #606266;
+    color: var(--ink-2);
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.62;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
@@ -562,12 +629,21 @@ onMounted(loadAll)
   }
 
   .scores {
-    margin-top: 6px;
-    color: #909399;
+    margin-top: 8px;
+    color: var(--ink-3);
     font-size: 11px;
+    font-variant-numeric: tabular-nums; /* 三个分数按位对齐，扫一眼就能比大小 */
     display: flex;
     gap: 6px;
     align-items: center;
+
+    .cited-tag {
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: rgba(52, 199, 89, 0.14);
+      color: #1f9d47;
+      font-size: 11px;
+    }
   }
 }
 
@@ -576,16 +652,46 @@ onMounted(loadAll)
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: #fff; /* 助手回答不再包气泡，直接铺在白底上 */
 
   .chat-head {
-    padding: 14px 20px;
+    padding: 12px 24px;
     background: #fff;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid rgba(60, 60, 67, 0.08); /* iOS separator 的观感：极淡 */
 
-    .muted {
-      margin-left: 10px;
-      color: #909399;
-      font-size: 12px;
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mini-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
+    }
+
+    .who-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.35;
+      min-width: 0;
+
+      .muted {
+        color: var(--ink-3);
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     }
   }
 
@@ -621,15 +727,33 @@ onMounted(loadAll)
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 20px;
+    padding: 24px 28px 12px;
 
     .welcome {
       text-align: center;
-      margin-top: 80px;
+      margin-top: 64px;
       animation: fade-up 0.45s var(--ease) both;
 
+      .big-avatar {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 18px;
+        border-radius: 20px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 28px;
+        font-weight: 600;
+        background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 22px rgba(16, 24, 40, 0.16);
+      }
+
       h3 {
+        max-width: 520px;
+        margin: 0 auto;
+        font-size: 16px;
         font-weight: 500;
+        line-height: 1.7;
         color: var(--ink-2);
       }
 
@@ -638,88 +762,148 @@ onMounted(loadAll)
         flex-wrap: wrap;
         gap: 8px;
         justify-content: center;
-        margin-top: 16px;
+        margin-top: 22px;
+      }
+
+      /* 建议问题做成胶囊 chip，比默认按钮轻 */
+      .sug-chip {
+        padding: 7px 14px;
+        border: 1px solid rgba(60, 60, 67, 0.12);
+        border-radius: 999px;
+        background: #fff;
+        color: var(--ink-2);
+        font-size: 13px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: border-color 0.16s var(--ease), color 0.16s var(--ease),
+          transform 0.16s var(--ease), box-shadow 0.16s var(--ease);
+
+        &:hover {
+          color: var(--brand-ink);
+          border-color: rgba(0, 122, 255, 0.35);
+          box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+          transform: translateY(-1px);
+        }
       }
     }
 
     .msg {
       display: flex;
-      margin-bottom: 16px;
-      /* 新气泡入场；流式刷新不会重挂载，所以动画不会反复播 */
-      animation: bubble-in 0.28s var(--ease) both;
+      gap: 12px;
+      margin-bottom: 26px;
+      /* 新消息入场；流式刷新不会重挂载，所以动画不会反复播 */
+      animation: bubble-in 0.28s var(--ease) backwards;
 
+      /* 用户消息：右对齐的蓝色胶囊（iMessage 那种），不带头像 */
       &.user {
         justify-content: flex-end;
 
-        .bubble {
+        .body {
+          max-width: 76%;
+          padding: 10px 15px;
+          border-radius: 18px;
           background: var(--brand);
           color: #fff;
-          box-shadow: 0 2px 8px rgba(64, 158, 255, 0.22);
-        }
-      }
-
-      &.assistant .bubble {
-        background: #fff;
-        box-shadow: var(--shadow-1);
-      }
-
-      .bubble {
-        max-width: 78%;
-        padding: 12px 16px;
-        border-radius: 10px;
-        font-size: 14px;
-
-        /* 检索过程条：弱化处理，别抢正文的注意力 */
-        .retrieval-bar {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 6px;
-          margin: -2px 0 10px;
-          padding-bottom: 8px;
-          border-bottom: 1px dashed var(--line-soft);
-          color: var(--ink-3);
-          font-size: 12px;
-          line-height: 1.6;
-
-          b {
-            color: var(--brand);
-            font-weight: 600;
-          }
-
-          .off {
-            color: #e6a23c;
-          }
-        }
-
-        .reasoning {
-          padding: 8px 10px;
-          margin-bottom: 8px;
-          background: var(--bg-page);
-          border-left: 3px solid #c0c4cc;
-          border-radius: 0 4px 4px 0;
-          color: var(--ink-3);
-          font-size: 12px;
-          line-height: 1.6;
+          font-size: 14px;
+          line-height: 1.65;
           white-space: pre-wrap;
-          max-height: 180px;
-          overflow-y: auto;
+          word-break: break-word;
+          box-shadow: 0 2px 10px rgba(64, 158, 255, 0.22);
+          user-select: text; /* 自己提的问题要能选中复制 */
+          -webkit-user-select: text;
+        }
+      }
+
+      /* 助手消息：头像 + 无气泡正文 */
+      &.assistant {
+        align-items: flex-start;
+
+        .body {
+          flex: 1;
+          min-width: 0;
+          padding-top: 2px;
+          font-size: 14.5px;
+        }
+      }
+
+      .msg-avatar {
+        width: 30px;
+        height: 30px;
+        flex-shrink: 0;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+
+      .body {
+        min-width: 0;
+      }
+
+      /* 检索过程条：弱化处理，别抢正文的注意力 */
+      .retrieval-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.6;
+
+        b {
+          color: var(--brand-ink);
+          font-weight: 600;
         }
 
-        /* 代码块/表格/标题等排版统一在全局 .answer-md 里（v-html 内容需要全局选择器） */
-        .md {
-          min-width: 0;
+        .off {
+          color: #e6a23c;
         }
+      }
+
+      .reasoning {
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        background: var(--bg-page);
+        border-radius: 10px;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      /* 代码块/表格/标题等排版统一在全局 .answer-md 里（v-html 内容需要全局选择器） */
+      .md {
+        min-width: 0;
+      }
+
+      .msg-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 6px;
+        color: var(--ink-3);
+        font-size: 12px;
+        opacity: 0;
+        animation: fade-up 0.3s var(--ease) 0.1s forwards;
 
         .meta {
-          margin-top: 8px;
+          margin-right: 4px;
+        }
+
+        :deep(.el-button) {
           color: var(--ink-3);
-          font-size: 12px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          opacity: 0;
-          animation: fade-up 0.3s var(--ease) 0.1s forwards;
+          padding: 2px 4px;
+
+          &:hover {
+            color: var(--brand);
+          }
         }
       }
     }
@@ -737,23 +921,102 @@ onMounted(loadAll)
 
   .input-area {
     background: #fff;
-    border-top: 1px solid #e4e7ed;
-    padding: 12px 20px;
+    border-top: 1px solid rgba(60, 60, 67, 0.08);
+    padding: 12px 24px 16px;
 
-    .opts {
+    /* 悬浮卡片式输入框：聚焦时整块亮起来，而不是只亮一行边框 */
+    .composer {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 10px 12px 8px;
+      border: 1px solid rgba(60, 60, 67, 0.14);
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(16, 24, 40, 0.05);
+      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+
+      &:focus-within {
+        border-color: rgba(0, 122, 255, 0.45);
+        box-shadow: 0 6px 20px rgba(0, 122, 255, 0.14);
+      }
+
+      /* 去掉 el-input 自带边框与内阴影，让它"长"在卡片里 */
+      :deep(.el-textarea__inner) {
+        padding: 4px 4px 0;
+        box-shadow: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.7;
+        min-height: 52px !important;
+      }
+    }
+
+    .composer-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 6px;
+    }
+
+    .param-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(120, 120, 128, 0.08);
+      color: var(--ink-2);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
+
+      &:hover {
+        background: rgba(120, 120, 128, 0.14);
+        color: var(--ink-1);
+      }
 
       .opt-label {
-        margin-left: 4px;
-        max-width: 420px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+    }
+
+    /* 圆形发送键：iOS 里最常见的收口方式 */
+    .send-btn {
+      width: 34px;
+      height: 34px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--brand);
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.16s var(--ease), transform 0.16s var(--ease),
+        box-shadow 0.16s var(--ease);
+
+      &:hover:not(:disabled) {
+        background: #2f8ff0;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.35);
+      }
+
+      &:disabled {
+        background: rgba(120, 120, 128, 0.24);
+        cursor: not-allowed;
+      }
+    }
+
+    .stop-btn {
+      border-radius: 999px;
     }
   }
 }

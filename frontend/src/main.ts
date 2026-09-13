@@ -6,6 +6,7 @@ import 'element-plus/dist/index.css'
 import {
   ArrowDown,
   ArrowDownBold,
+  ArrowRight,
   ChatDotRound,
   CircleCheck,
   CircleCheckFilled,
@@ -19,6 +20,7 @@ import {
   FolderOpened,
   Lock,
   MagicStick,
+  MoreFilled,
   Search,
   Setting,
   User,
@@ -55,10 +57,12 @@ const icons = {
   Search,
   ArrowDown,
   ArrowDownBold,
+  ArrowRight,
   CircleCheck,
   CircleCheckFilled,
   CircleClose,
   CircleCloseFilled,
+  MoreFilled,
 }
 
 for (const [name, component] of Object.entries(icons)) {

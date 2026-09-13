@@ -71,6 +71,33 @@ body {
   padding: 16px;
 }
 
+/* ============================================================
+   文本选择：外壳默认不可拖选（像原生 App），内容区显式放开
+   ------------------------------------------------------------
+   反面案例：拖一下鼠标把按钮文字、菜单、标题全选中了 —— 观感很像网页而不是应用。
+   但"可复制"是问答平台的核心能力，所以正文、代码、表格必须留着可选，
+   复制回答、复制代码块、复制引用片段都要能用。
+   ============================================================ */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+pre,
+code,
+.answer-md,
+.reasoning,
+.el-table,
+.el-descriptions__content,
+.citation-item .snippet,
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .page-header {
   display: flex;
   align-items: center;
