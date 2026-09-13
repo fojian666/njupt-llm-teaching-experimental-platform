@@ -344,6 +344,17 @@ async function refreshConversations() {
   conversations.value = await agentApi.conversations(agentId)
 }
 
+/** 每轮问答结束后刷新页头统计（对话数 / 提问数），失败不影响问答 */
+async function refreshAgentStats() {
+  try {
+    const a = await agentApi.get(agentId)
+    if (agent.value) {
+      agent.value.conversation_count = a.conversation_count
+      agent.value.message_count = a.message_count
+    }
+  } catch { /* 静默：统计是锦上添花 */ }
+}
+
 function newConversation() {
   conversationId.value = null
   messages.value = []
@@ -556,6 +567,7 @@ async function send() {
     streaming.value = false
     abort = null
     refreshConversations()
+    refreshAgentStats()
   }
 }
 
