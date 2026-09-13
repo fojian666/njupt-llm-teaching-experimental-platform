@@ -27,27 +27,36 @@
         </div>
       </div>
 
-      <div ref="scrollEl" class="messages">
-        <div v-if="!messages.length" class="welcome">
-          <h3>{{ agent?.welcome_message }}</h3>
-          <div class="sug">
-            <el-button v-for="q in agent?.suggested_questions || []" :key="q" size="small" plain @click="ask(q)">
-              {{ q }}
-            </el-button>
+      <div class="messages-wrap">
+        <div ref="scrollEl" class="messages" @scroll.passive="onScroll">
+          <div v-if="!messages.length" class="welcome">
+            <h3>{{ agent?.welcome_message }}</h3>
+            <div class="sug">
+              <el-button v-for="q in agent?.suggested_questions || []" :key="q" size="small" plain @click="ask(q)">
+                {{ q }}
+              </el-button>
+            </div>
           </div>
-        </div>
 
-        <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
-          <div class="bubble">
-            <div v-if="m.role === 'assistant' && m.reasoning" class="reasoning">{{ m.reasoning }}</div>
-            <div class="md" :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }" v-html="render(m.content)"></div>
-            <div v-if="m.role === 'assistant' && m.model_name && i === messages.length - 1 && !streaming" class="meta">
-              {{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template>
-              <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
-              <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+          <div v-for="(m, i) in messages" :key="m.id ? `m${m.id}` : `t${i}`" class="msg" :class="m.role">
+            <div class="bubble">
+              <div v-if="m.role === 'assistant' && m.reasoning" class="reasoning">{{ m.reasoning }}</div>
+              <div class="md answer-md" :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }" v-html="render(m.content)"></div>
+              <div v-if="m.role === 'assistant' && m.model_name && i === messages.length - 1 && !streaming" class="meta">
+                {{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template>
+                <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
+                <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- 用户上翻看历史时自动跟滚会让出，给一个回底部的出口 -->
+        <transition name="jump">
+          <el-button v-if="showJump" class="jump-btn" circle @click="jumpToBottom">
+            <el-icon><ArrowDownBold /></el-icon>
+          </el-button>
+        </transition>
       </div>
 
       <div v-if="notice" class="notice">{{ notice }}</div>
@@ -106,7 +115,13 @@
         <el-tag size="small" type="info">{{ citations.length }}</el-tag>
       </div>
       <div class="cite-list">
-        <div v-for="c in citations" :key="`${c.chunk_id}-${c.index}`" class="citation-item" :class="{ 'is-cited': c.cited }">
+        <div
+          v-for="c in citations"
+          :key="`${c.chunk_id}-${c.index}`"
+          class="citation-item"
+          :class="{ 'is-cited': c.cited }"
+          :style="{ '--i': Math.min(c.index, 10) }"
+        >
           <div class="cite-top">
             <span class="idx">[{{ c.index }}]</span>
             <span class="src">{{ c.source_name }}</span>
@@ -125,12 +140,48 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js'
+// hljs 走 core + 按需注册：整包会把 190+ 种语言一起打进前端（约 1MB）。
+// 这里按“物联网/计算机类课程可能出现的代码”挑一组；要加语言就 import + register 一行。
+import hljs from 'highlight.js/lib/core'
+import bash from 'highlight.js/lib/languages/bash'
+import cpp from 'highlight.js/lib/languages/cpp'
+import c from 'highlight.js/lib/languages/c'
+import arduino from 'highlight.js/lib/languages/arduino'
+import ini from 'highlight.js/lib/languages/ini'
+import java from 'highlight.js/lib/languages/java'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import markdown from 'highlight.js/lib/languages/markdown'
+import matlab from 'highlight.js/lib/languages/matlab'
+import python from 'highlight.js/lib/languages/python'
+import shell from 'highlight.js/lib/languages/shell'
+import sql from 'highlight.js/lib/languages/sql'
+import typescript from 'highlight.js/lib/languages/typescript'
+import xml from 'highlight.js/lib/languages/xml'
+import yaml from 'highlight.js/lib/languages/yaml'
 import 'highlight.js/styles/github-dark.css'
+
+hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('c', c)
+hljs.registerLanguage('cpp', cpp)
+hljs.registerLanguage('arduino', arduino)
+hljs.registerLanguage('ini', ini)
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('markdown', markdown)
+hljs.registerLanguage('matlab', matlab)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('shell', shell)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('yaml', yaml)
+
 import { agentApi } from '@/api/agents'
 import { kbApi } from '@/api/datasets'
 import { configApi } from '@/api/auth'
@@ -142,10 +193,24 @@ const agentId = Number(route.params.id)
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const highlight = (code: string, lang: string): string =>
-  lang && hljs.getLanguage(lang)
-    ? hljs.highlight(code, { language: lang }).value
-    : escapeHtml(code)
+
+/**
+ * 返回完整的高亮代码块 HTML。
+ * markdown-it 看到返回值以 <pre 开头就原样使用、不再自己包一层；
+ * 关键是带上 class="hljs" —— github-dark 主题的容器色（深底浅字）挂在 .hljs 上，
+ * 只返回内部片段的话主题色对不上，会出现浅色字配浅色底的看不清问题。
+ */
+const highlight = (code: string, lang: string): string => {
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      const html = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
+      return `<pre class="hljs"><code class="hljs language-${lang}">${html}</code></pre>`
+    } catch {
+      /* 落到下面的纯文本分支 */
+    }
+  }
+  return `<pre class="hljs"><code class="hljs">${escapeHtml(code)}</code></pre>`
+}
 const md = new MarkdownIt({
   html: false, // 禁止 HTML —— 模型输出不可信，防注入
   linkify: true,
@@ -201,6 +266,7 @@ function newConversation() {
   messages.value = []
   citations.value = []
   notice.value = ''
+  resetScrollState()
 }
 
 async function openConversation(id: number) {
@@ -208,11 +274,77 @@ async function openConversation(id: number) {
   messages.value = await agentApi.messages(id)
   const last = [...messages.value].reverse().find((m) => m.role === 'assistant')
   citations.value = last?.citations ?? []
-  scrollBottom()
+  resetScrollState()
+  nextTick(() => scrollToBottom(false))
 }
 
-function scrollBottom() {
-  nextTick(() => scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' }))
+// ---------- 滚动策略 ----------
+// 只有用户本来就贴着底部时才自动跟滚；向上翻历史时不把人拽回来。
+const SCROLL_GAP = 64
+const stickBottom = ref(true)
+const showJump = ref(false)
+let scrollRaf = 0
+
+function onScroll() {
+  const el = scrollEl.value
+  if (!el) return
+  const gap = el.scrollHeight - el.scrollTop - el.clientHeight
+  stickBottom.value = gap < SCROLL_GAP
+  showJump.value = !stickBottom.value
+}
+
+function resetScrollState() {
+  stickBottom.value = true
+  showJump.value = false
+}
+
+function scrollToBottom(smooth = true) {
+  const el = scrollEl.value
+  if (!el || !stickBottom.value) return
+  el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+}
+
+/** 流式期间一帧最多滚一次，避免每个 token 都触发一次布局抖动 */
+function scheduleScroll() {
+  if (scrollRaf) return
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0
+    scrollToBottom(false)
+  })
+}
+
+function jumpToBottom() {
+  resetScrollState()
+  nextTick(() => scrollToBottom(true))
+}
+
+// ---------- 流式输出合帧 ----------
+// 模型每秒能吐几十个 delta。逐条更新会带来两笔开销：整段 markdown 重新渲染 + 滚动，
+// 回答越长越卡。这里按 60ms 合帧，一批一起刷。
+const FLUSH_MS = 60
+let deltaBuf = ''
+let flushTimer: number | null = null
+
+function flushDelta(reply: ChatMessage) {
+  if (!deltaBuf) return
+  reply.content += deltaBuf
+  deltaBuf = ''
+}
+
+function scheduleFlush(reply: ChatMessage) {
+  if (flushTimer != null) return
+  flushTimer = window.setTimeout(() => {
+    flushTimer = null
+    flushDelta(reply)
+    scrollToBottom(false)
+  }, FLUSH_MS)
+}
+
+function cancelFlush() {
+  if (flushTimer != null) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
 }
 
 async function ask(q: string) {
@@ -227,10 +359,12 @@ async function send() {
   notice.value = ''
 
   messages.value.push({ role: 'user', content: question })
-  const reply: ChatMessage = { role: 'assistant', content: '', citations: [] }
+  // 用 reactive 包一层再 push：直接改裸对象的属性不会触发更新（读的是代理，写的是原对象）
+  const reply = reactive<ChatMessage>({ role: 'assistant', content: '', citations: [] })
   messages.value.push(reply)
   streaming.value = true
-  scrollBottom()
+  resetScrollState()
+  nextTick(() => scrollToBottom(false))
 
   abort = new AbortController()
   try {
@@ -257,11 +391,11 @@ async function send() {
         },
         onReasoning: (d) => {
           reply.reasoning = (reply.reasoning || '') + d.text
-          scrollBottom()
+          scheduleScroll()
         },
         onDelta: (d) => {
-          reply.content += d.text
-          scrollBottom()
+          deltaBuf += d.text
+          scheduleFlush(reply)
         },
         onNotice: (d) => {
           notice.value = d.message
@@ -280,6 +414,9 @@ async function send() {
   } catch {
     /* 中断或网络错误已在 onError 里提示 */
   } finally {
+    // 收尾必须把缓冲区里剩下的字刷出来，否则最后几十毫秒的内容会丢
+    cancelFlush()
+    flushDelta(reply)
     streaming.value = false
     abort = null
     refreshConversations()
@@ -303,8 +440,12 @@ onMounted(loadAll)
 <style scoped lang="scss">
 .chat-wrap {
   display: flex;
-  height: calc(100vh - 60px);
-  background: #f5f7fa;
+  /* 高度由布局层统一算好（el-main 上下各 16px padding 要扣掉）。
+     写死 calc(100vh - 60px) 会多出 32px，外层的 .main 就冒出滚动条。 */
+  height: var(--content-height, calc(100vh - 92px));
+  background: var(--bg-page);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .side {
@@ -330,15 +471,19 @@ onMounted(loadAll)
     padding: 10px 14px;
     cursor: pointer;
     font-size: 13px;
-    color: #606266;
+    color: var(--ink-2);
+    border-left: 2px solid transparent;
+    transition: background-color 0.18s var(--ease), color 0.18s var(--ease),
+      border-color 0.18s var(--ease);
 
     &:hover {
-      background: #f5f7fa;
+      background: var(--bg-page);
     }
 
     &.active {
       background: #ecf5ff;
-      color: #409eff;
+      color: var(--brand);
+      border-left-color: var(--brand);
     }
 
     .ctitle {
@@ -428,18 +573,48 @@ onMounted(loadAll)
     }
   }
 
+  .messages-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+  }
+
+  .jump-btn {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 3;
+    box-shadow: 0 4px 14px rgba(31, 45, 61, 0.18);
+  }
+
+  .jump-enter-active,
+  .jump-leave-active {
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .jump-enter-from,
+  .jump-leave-to {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+
   .messages {
     flex: 1;
+    min-width: 0;
     overflow-y: auto;
     padding: 20px;
 
     .welcome {
       text-align: center;
       margin-top: 80px;
+      animation: fade-up 0.45s var(--ease) both;
 
       h3 {
         font-weight: 500;
-        color: #606266;
+        color: var(--ink-2);
       }
 
       .sug {
@@ -454,18 +629,22 @@ onMounted(loadAll)
     .msg {
       display: flex;
       margin-bottom: 16px;
+      /* 新气泡入场；流式刷新不会重挂载，所以动画不会反复播 */
+      animation: bubble-in 0.28s var(--ease) both;
 
       &.user {
         justify-content: flex-end;
 
         .bubble {
-          background: #409eff;
+          background: var(--brand);
           color: #fff;
+          box-shadow: 0 2px 8px rgba(64, 158, 255, 0.22);
         }
       }
 
       &.assistant .bubble {
         background: #fff;
+        box-shadow: var(--shadow-1);
       }
 
       .bubble {
@@ -477,47 +656,31 @@ onMounted(loadAll)
         .reasoning {
           padding: 8px 10px;
           margin-bottom: 8px;
-          background: #f5f7fa;
+          background: var(--bg-page);
           border-left: 3px solid #c0c4cc;
-          color: #909399;
+          border-radius: 0 4px 4px 0;
+          color: var(--ink-3);
           font-size: 12px;
+          line-height: 1.6;
           white-space: pre-wrap;
+          max-height: 180px;
+          overflow-y: auto;
         }
 
+        /* 代码块/表格/标题等排版统一在全局 .answer-md 里（v-html 内容需要全局选择器） */
         .md {
-          overflow-x: auto;
-
-          :deep(pre) {
-            overflow-x: auto;
-            max-width: 100%;
-            background: #f6f8fa;
-            padding: 10px;
-            border-radius: 6px;
-          }
-
-          :deep(code) {
-            word-break: break-word;
-          }
-
-          :deep(table) {
-            display: block;
-            max-width: 100%;
-            overflow-x: auto;
-            border-collapse: collapse;
-          }
-
-          :deep(a) {
-            word-break: break-all;
-          }
+          min-width: 0;
         }
 
         .meta {
           margin-top: 8px;
-          color: #909399;
+          color: var(--ink-3);
           font-size: 12px;
           display: flex;
           align-items: center;
           gap: 4px;
+          opacity: 0;
+          animation: fade-up 0.3s var(--ease) 0.1s forwards;
         }
       }
     }
@@ -528,8 +691,9 @@ onMounted(loadAll)
     padding: 8px 12px;
     background: #fdf6ec;
     color: #e6a23c;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 12px;
+    animation: fade-up 0.28s var(--ease) both;
   }
 
   .input-area {

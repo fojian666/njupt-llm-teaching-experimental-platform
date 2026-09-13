@@ -1,4 +1,32 @@
-/* 全局基础样式 —— 平台是中后台形态，视觉上克制，把注意力留给数据 */
+/* ============================================================
+   全局基础样式 —— 平台是中后台形态，视觉上克制，把注意力留给数据
+   ============================================================ */
+
+/* ---------- 设计变量（新样式统一引用，避免颜色散落各处） ---------- */
+:root {
+  --brand: #409eff;
+  --brand-ink: #2b6cb0;
+  --ink-1: #303133;
+  --ink-2: #606266;
+  --ink-3: #909399;
+  --line: #e4e7ed;
+  --line-soft: #ebeef5;
+  --bg-page: #f5f7fa;
+  --bg-soft: #fafbfc;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+
+  /* 缓动统一用 ease-out：入场快、收尾稳，不会有“弹一下”的廉价感 */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 0.14s;
+  --dur: 0.24s;
+  --dur-slow: 0.4s;
+
+  --shadow-1: 0 2px 8px rgba(31, 45, 61, 0.06);
+  --shadow-2: 0 8px 24px rgba(31, 45, 61, 0.12);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -14,12 +42,31 @@ body,
 body {
   font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  color: #303133;
-  background-color: #f5f7fa;
+  color: var(--ink-1);
+  background-color: var(--bg-page);
   -webkit-font-smoothing: antialiased;
 }
 
-/* 页面通用留白 */
+/* ---------- 细滚动条：默认那条宽灰条在中后台里很显眼 ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(144, 147, 153, 0.32);
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba(144, 147, 153, 0.55);
+  }
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 页面通用留白 ---------- */
 .page {
   padding: 16px;
 }
@@ -39,28 +86,73 @@ body {
 
 /* 表格里的次级文字 */
 .text-muted {
-  color: #909399;
+  color: var(--ink-3);
   font-size: 12px;
 }
 
-/* 引用来源面板 */
-.citation-item {
-  padding: 10px 12px;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
-  background: #fafbfc;
-  margin-bottom: 8px;
+/* ============================================================
+   动效
+   ============================================================ */
 
-  &.is-cited {
-    border-color: #409eff;
-    background: #ecf5ff;
+/* 路由切换：淡入 + 轻微上移。out-in 由组件控制，这里只管两端状态 */
+.page-fade-enter-active {
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+.page-fade-leave-active {
+  transition: opacity var(--dur-fast) ease-in;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+}
+
+/* 列表/卡片入场 */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
-/* 流式回答里的光标效果 */
+/* 卡片入场（带一点点缩放，比纯位移更“实”） */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 气泡入场 */
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 流式回答里的光标效果（保留原有写法） */
 .streaming-cursor::after {
   content: '▍';
-  color: #409eff;
+  color: var(--brand);
+  margin-left: 1px;
   animation: blink 1s steps(2, start) infinite;
 }
 
@@ -70,38 +162,187 @@ body {
   }
 }
 
-/* markdown 正文 */
+/* ============================================================
+   引用来源面板（问答页右侧）
+   ============================================================ */
+.citation-item {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  margin-bottom: 8px;
+  /* 检索结果一到就逐条浮现；--i 由调用方按引用序号注入 */
+  animation: fade-up 0.32s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+
+  &:hover {
+    border-color: #c6d9f0;
+  }
+
+  &.is-cited {
+    border-color: var(--brand);
+    background: #ecf5ff;
+    box-shadow: 0 2px 10px rgba(64, 158, 255, 0.12);
+  }
+}
+
+/* ============================================================
+   markdown 正文排版
+   注意：这段样式作用于 v-html 渲染出来的内容，必须是全局选择器，
+   组件里用 <div class="md answer-md"> 挂上即可。
+   ============================================================ */
 .answer-md {
-  line-height: 1.75;
+  line-height: 1.78;
   word-break: break-word;
 
+  /* 段落与标题间距收紧，避免模型输出把气泡撑得很散 */
+  p {
+    margin: 0 0 10px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 18px 0 8px;
+    font-weight: 600;
+    line-height: 1.4;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  /* 缩到正文尺度：默认 h1/h2 的 1.5~2em 在气泡里过大 */
+  h1 {
+    font-size: 17px;
+  }
+  h2 {
+    font-size: 16px;
+  }
+  h3 {
+    font-size: 15px;
+  }
+  h4,
+  h5,
+  h6 {
+    font-size: 14px;
+  }
+
+  ul,
+  ol {
+    margin: 0 0 10px;
+    padding-left: 22px;
+  }
+
+  li {
+    margin: 4px 0;
+
+    &::marker {
+      color: var(--ink-3);
+    }
+  }
+
+  blockquote {
+    margin: 10px 0;
+    padding: 6px 12px;
+    border-left: 3px solid #d6e4f5;
+    background: #f7fafd;
+    color: var(--ink-2);
+  }
+
+  hr {
+    margin: 14px 0;
+    border: none;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  a {
+    color: var(--brand);
+    text-decoration: none;
+    word-break: break-all;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  /* 行内代码 */
   code {
     padding: 2px 5px;
     border-radius: 4px;
     background: #f0f2f5;
+    color: #c7254e;
     font-family: 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 13px;
+    font-size: 0.92em;
   }
 
+  /* 代码块：highlight.js 的 github-dark 主题在浅底上会变成浅色字，必须配深底 */
   pre {
-    padding: 12px;
-    border-radius: 6px;
-    background: #282c34;
+    margin: 10px 0;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: #0d1117;
     overflow-x: auto;
 
     code {
+      padding: 0;
       background: transparent;
-      color: #abb2bf;
+      color: inherit;
+      font-size: 12.5px;
+      white-space: pre;
+      word-break: normal;
     }
   }
 
   table {
+    display: block;
+    max-width: 100%;
+    margin: 10px 0;
+    overflow-x: auto;
     border-collapse: collapse;
+    font-size: 13px;
 
     th,
     td {
       padding: 6px 10px;
-      border: 1px solid #e4e7ed;
+      border: 1px solid var(--line);
+      text-align: left;
     }
+
+    th {
+      background: #f5f7fa;
+      font-weight: 600;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #fbfcfd;
+    }
+  }
+}
+
+/* ============================================================
+   可访问性：用户系统里关掉了动效就别硬演
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -19,10 +19,12 @@
       <el-header class="header">
         <div class="head-left">
           <el-icon class="collapse-btn" :size="18" @click="collapsed = !collapsed">
-            <Expand v-if="collapsed" />
-            <Fold v-else />
+            <transition name="icon-swap" mode="out-in">
+              <Expand v-if="collapsed" key="expand" />
+              <Fold v-else key="fold" />
+            </transition>
           </el-icon>
-          <div class="title">{{ route.meta.title || '' }}</div>
+          <div :key="route.path" class="title">{{ route.meta.title || '' }}</div>
         </div>
         <el-dropdown @command="onCommand">
           <span class="user">
@@ -37,15 +39,19 @@
           </template>
         </el-dropdown>
       </el-header>
-      <el-main class="main">
-        <router-view />
+      <el-main ref="mainEl" class="main">
+        <router-view v-slot="{ Component }">
+          <transition name="page-fade" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
@@ -53,6 +59,16 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const collapsed = ref(false)
+
+/** el-main 是内部滚动的（overflow:auto），window 不滚，所以路由切换要手动复位 */
+const mainEl = ref<ComponentPublicInstance | null>(null)
+watch(
+  () => route.path,
+  () => {
+    const el = mainEl.value?.$el as HTMLElement | undefined
+    el?.scrollTo({ top: 0 })
+  },
+)
 
 /** 学生只看得到智能体广场，管理端入口对他隐藏 */
 const menus = computed(() =>
@@ -81,7 +97,7 @@ async function onCommand(cmd: string) {
 
 .aside {
   background: #1f2d3d;
-  transition: width 0.25s ease;
+  transition: width 0.25s var(--ease);
   overflow: hidden;
 
   .brand {
@@ -109,7 +125,7 @@ async function onCommand(cmd: string) {
 
   .brand-fade-enter-active,
   .brand-fade-leave-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
   }
 
   .brand-fade-enter-from,
@@ -126,6 +142,10 @@ async function onCommand(cmd: string) {
     }
 
     /* 菜单文字强制单行：宽度动画期间只被裁切，不发生换行挤压 */
+    :deep(.el-menu-item) {
+      transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+    }
+
     :deep(.el-menu-item span) {
       white-space: nowrap;
     }
@@ -137,7 +157,7 @@ async function onCommand(cmd: string) {
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--line);
 
   .head-left {
     display: flex;
@@ -147,16 +167,35 @@ async function onCommand(cmd: string) {
 
   .collapse-btn {
     cursor: pointer;
-    color: #606266;
+    color: var(--ink-2);
+    transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 
     &:hover {
-      color: #409eff;
+      color: var(--brand);
+      transform: scale(1.12);
+    }
+
+    /* 展开/收起图标交叉旋转，比硬切换自然 */
+    .icon-swap-enter-active,
+    .icon-swap-leave-active {
+      transition: opacity 0.18s var(--ease), transform 0.18s var(--ease);
+    }
+
+    .icon-swap-enter-from {
+      opacity: 0;
+      transform: rotate(-90deg);
+    }
+
+    .icon-swap-leave-to {
+      opacity: 0;
+      transform: rotate(90deg);
     }
   }
 
   .title {
     font-size: 16px;
     font-weight: 600;
+    animation: fade-up 0.3s var(--ease) both;
   }
 
   .user {
@@ -164,6 +203,13 @@ async function onCommand(cmd: string) {
     align-items: center;
     gap: 8px;
     cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--dur-fast) var(--ease);
+
+    &:hover {
+      background: var(--bg-page);
+    }
 
     .uname {
       font-size: 14px;
@@ -173,6 +219,9 @@ async function onCommand(cmd: string) {
 
 .main {
   padding: 16px; /* 灰底留白，白卡片浮起来；0 会让无卡片包裹的页面贴边 */
-  background: #f5f7fa;
+  background: var(--bg-page);
+
+  /* 把内容区可用高度算好传下去，页面就不用各自写 calc(100vh - 多少) 了 */
+  --content-height: calc(100vh - var(--el-header-height) - 32px);
 }
 </style>

@@ -9,8 +9,8 @@
     </div>
 
     <el-row :gutter="16" v-loading="loading">
-      <el-col v-for="a in agents" :key="a.id" :span="8" style="margin-bottom: 16px">
-        <el-card shadow="hover" class="agent-card">
+      <el-col v-for="(a, idx) in agents" :key="a.id" :span="8" style="margin-bottom: 16px">
+        <el-card shadow="hover" class="agent-card" :style="{ '--i': Math.min(idx, 8) }">
           <div class="head">
             <el-avatar :size="44" class="avatar">{{ a.name.slice(0, 1) }}</el-avatar>
             <div class="info">
@@ -86,8 +86,8 @@
         <el-form-item label="检索优先"><el-switch v-model="form.retrieval_first" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save">保存</el-button>
+        <el-button :disabled="saving" @click="dialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -110,6 +110,7 @@ const kbs = ref<KnowledgeBase[]>([])
 const llmOptions = ref<LlmOption[]>([])
 
 const dialog = ref(false)
+const saving = ref(false)
 const form = reactive<Record<string, any>>({
   id: 0, name: '', code: '', description: '', welcome_message: '', suggestedText: '',
   system_prompt: '', model_id: null as number | null, knowledge_base_ids: [] as number[],
@@ -149,6 +150,8 @@ function openEdit(a: Agent) {
 }
 
 async function save() {
+  if (saving.value) return // 防重复提交：连点两次会建出两个智能体
+  saving.value = true
   const payload = {
     name: form.name,
     ...(form.id ? {} : { code: form.code }),
@@ -162,18 +165,23 @@ async function save() {
     temperature: form.temperature,
     retrieval_first: form.retrieval_first,
   }
-  if (form.id) await agentApi.update(form.id, payload)
-  else {
-    const created = await agentApi.create(payload)
-    ElMessage.success('已创建，发布后出现在广场')
+  try {
+    if (form.id) {
+      await agentApi.update(form.id, payload)
+    } else {
+      const created = await agentApi.create(payload)
+      ElMessage.success('已创建，发布后出现在广场')
+      dialog.value = false
+      await agentApi.publish(created.id, 'published').catch(() => {})
+      await load()
+      return
+    }
+    ElMessage.success('已保存')
     dialog.value = false
-    await agentApi.publish(created.id, 'published').catch(() => {})
-    await load()
-    return
+    load()
+  } finally {
+    saving.value = false
   }
-  ElMessage.success('已保存')
-  dialog.value = false
-  load()
 }
 
 async function onMore(cmd: string, a: Agent) {
@@ -215,14 +223,26 @@ onMounted(async () => {
 }
 
 .agent-card {
+  /* 错峰入场：--i 由模板按序号注入，超过第 8 张不再累加延迟，避免长列表等太久。
+     填充用 backwards 而不是 both —— 动画填充值在层叠里优先于普通声明，
+     用 both 会把下面 :hover 的 transform 压掉，卡片就抬不起来了。 */
+  animation: card-in 0.4s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+  transition: transform 0.22s var(--ease);
+
+  &:hover {
+    transform: translateY(-3px);
+  }
+
   .head {
     display: flex;
     gap: 12px;
 
     .avatar {
-      background: #409eff;
+      background: linear-gradient(135deg, #409eff, #6a5acd);
       font-size: 18px;
       flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(64, 158, 255, 0.28);
     }
 
     .name {

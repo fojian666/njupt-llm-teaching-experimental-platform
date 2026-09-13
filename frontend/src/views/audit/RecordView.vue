@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { auditApi } from '@/api/agents'
+import CountUp from '@/components/CountUp.vue'
 import type { QARecord, OperationLog } from '@/types'
 
 const tab = ref('records')
@@ -79,31 +80,66 @@ async function loadStats() {
 const feedbackLabel: Record<string, string> = { like: '👍 赞', dislike: '👎 踩' }
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
 const feedbackType: Record<string, TagType> = { like: 'success', dislike: 'danger' }
+
+/** 统计卡片：一次算好，模板里只负责渲染 + 错峰入场 */
+interface StatCard {
+  title: string
+  value: number | null
+  precision?: number
+  suffix?: string
+}
+const statCards = computed<StatCard[]>(() => {
+  const s = stats.value
+  if (!s) return []
+  return [
+    { title: '问答总数', value: s.total_qa },
+    { title: '近 7 天问答', value: s.recent_qa },
+    { title: '报错问答', value: s.error_qa },
+    { title: '会话总数', value: s.conversations },
+  ]
+})
+const statCards2 = computed<StatCard[]>(() => {
+  const s = stats.value
+  if (!s) return []
+  return [
+    { title: '点赞数', value: s.liked },
+    { title: '点踩数', value: s.disliked },
+    { title: '满意度', value: s.satisfaction != null ? s.satisfaction * 100 : null, precision: 1, suffix: '%' },
+    { title: '平均耗时', value: s.avg_latency_ms ? s.avg_latency_ms / 1000 : null, precision: 1, suffix: 's' },
+  ]
+})
+const exporting = ref(false)
 async function exportRecords() {
-  // 循环拉取全部符合条件的记录（按当前筛选），导出为 JSON 文件
-  const all: QARecord[] = []
-  let p = 1
-  for (;;) {
-    const r = await auditApi.records({
-      page: p,
-      page_size: 100,
-      keyword: filters.keyword || undefined,
-      feedback: filters.feedback || undefined,
-      only_error: filters.only_error || undefined,
-      date_from: filters.dateRange?.[0],
-      date_to: filters.dateRange?.[1],
-    })
-    all.push(...r.items)
-    if (!r.items.length || all.length >= r.total) break
-    p++
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    // 循环拉取全部符合条件的记录（按当前筛选），导出为 JSON 文件
+    const all: QARecord[] = []
+    let p = 1
+    for (;;) {
+      const r = await auditApi.records({
+        page: p,
+        page_size: 100,
+        keyword: filters.keyword || undefined,
+        feedback: filters.feedback || undefined,
+        only_error: filters.only_error || undefined,
+        date_from: filters.dateRange?.[0],
+        date_to: filters.dateRange?.[1],
+      })
+      all.push(...r.items)
+      if (!r.items.length || all.length >= r.total) break
+      p++
+    }
+    const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `qa-records-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    ElMessage.success(`已导出 ${all.length} 条记录`)
+  } finally {
+    exporting.value = false
   }
-  const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `qa-records-${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(a.href)
-  ElMessage.success(`已导出 ${all.length} 条记录`)
 }
 
 onMounted(() => { loadRecords(); loadStats() })
@@ -141,7 +177,7 @@ function switchTab(name: string | number) {
           <el-form-item>
             <el-button type="primary" @click="loadRecords">查询</el-button>
             <el-button @click="resetFilters">重置</el-button>
-            <el-button @click="exportRecords">导出 JSON</el-button>
+            <el-button :loading="exporting" @click="exportRecords">导出 JSON</el-button>
           </el-form-item>
         </el-form>
 
@@ -213,24 +249,16 @@ function switchTab(name: string | number) {
       <el-tab-pane label="使用统计" name="stats">
         <div v-if="stats" v-loading="statsLoading">
           <el-row :gutter="16" class="stat-row">
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="问答总数" :value="stats.total_qa" /></el-card></el-col>
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="近 7 天问答" :value="stats.recent_qa" /></el-card></el-col>
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="报错问答" :value="stats.error_qa" /></el-card></el-col>
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="会话总数" :value="stats.conversations" /></el-card></el-col>
-          </el-row>
-          <el-row :gutter="16" class="stat-row">
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="点赞数" :value="stats.liked" /></el-card></el-col>
-            <el-col :span="6"><el-card shadow="never"><el-statistic title="点踩数" :value="stats.disliked" /></el-card></el-col>
-            <el-col :span="6">
-              <el-card shadow="never">
-                <el-statistic v-if="stats.satisfaction != null" title="满意度" :value="stats.satisfaction * 100" :precision="1" suffix="%" />
-                <div v-else class="stat-none">—</div>
+            <el-col v-for="(s, i) in statCards" :key="s.title" :span="6" :style="{ '--i': i }">
+              <el-card shadow="never" class="stat-card">
+                <CountUp :title="s.title" :value="s.value" :precision="s.precision" :suffix="s.suffix" />
               </el-card>
             </el-col>
-            <el-col :span="6">
-              <el-card shadow="never">
-                <el-statistic v-if="stats.avg_latency_ms" title="平均耗时" :value="stats.avg_latency_ms / 1000" :precision="1" suffix="s" />
-                <div v-else class="stat-none">—</div>
+          </el-row>
+          <el-row :gutter="16" class="stat-row">
+            <el-col v-for="(s, i) in statCards2" :key="s.title" :span="6" :style="{ '--i': i + 4 }">
+              <el-card shadow="never" class="stat-card">
+                <CountUp :title="s.title" :value="s.value" :precision="s.precision" :suffix="s.suffix" />
               </el-card>
             </el-col>
           </el-row>
@@ -278,6 +306,18 @@ function switchTab(name: string | number) {
 .ml8 { margin-left: 8px; }
 .muted { color: var(--el-text-color-secondary); font-size: 12px; }
 .stat-row { margin-bottom: 16px; }
+/* 统计卡片错峰入场：--i 由模板注入序号。
+   填充用 backwards：用 both 的话填充值会压掉下面 :hover 的 transform。
+   注意本文件 style 块没写 lang="scss"，这里只能是平铺 CSS，不能用嵌套。 */
+.stat-card {
+  animation: card-in 0.4s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-1);
+}
 .stat-none { color: var(--el-text-color-secondary); font-size: 14px; text-align: center; }
 .detail-q { background: var(--el-fill-color-light); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
 .detail-a { white-space: pre-wrap; line-height: 1.7; font-size: 13px; }

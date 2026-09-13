@@ -56,32 +56,70 @@ async function submit() {
 
 <style scoped lang="scss">
 .login-page {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: linear-gradient(135deg, #1f2d3d 0%, #2b4a6f 100%);
+  overflow: hidden;
+  background: linear-gradient(135deg, #1f2d3d 0%, #2b4a6f 55%, #1f2d3d 100%);
+  background-size: 220% 220%;
+  animation: bg-pan 24s ease-in-out infinite alternate;
+
+  /* 右上角一团柔光，给纯色背景一点纵深 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -160px;
+    right: -120px;
+    width: 520px;
+    height: 520px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(64, 158, 255, 0.35) 0%, rgba(64, 158, 255, 0) 70%);
+    pointer-events: none;
+  }
+}
+
+@keyframes bg-pan {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
 }
 
 .card {
+  position: relative;
   width: 380px;
   padding: 8px 12px;
+  border: none;
+  /* el-card 的阴影走的是 CSS 变量，直接覆盖变量比硬写 box-shadow 更稳（不会被 .is-always-shadow 盖掉） */
+  --el-box-shadow-light: 0 18px 48px rgba(10, 22, 36, 0.38);
+  animation: card-in 0.5s var(--ease) both;
 
   .title {
     margin: 8px 0 4px;
     text-align: center;
     font-size: 19px;
+    animation: fade-up 0.5s var(--ease) 0.08s both;
   }
 
   .sub {
     margin: 0 0 20px;
     text-align: center;
-    color: #909399;
+    color: var(--ink-3);
     font-size: 13px;
+    animation: fade-up 0.5s var(--ease) 0.14s both;
+  }
+
+  :deep(.el-form) {
+    animation: fade-up 0.5s var(--ease) 0.2s both;
   }
 
   .hint {
     margin-top: 16px;
+    animation: fade-up 0.5s var(--ease) 0.26s both;
 
     p {
       margin: 2px 0;
