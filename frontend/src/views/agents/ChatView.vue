@@ -40,6 +40,14 @@
 
           <div v-for="(m, i) in messages" :key="m.id ? `m${m.id}` : `t${i}`" class="msg" :class="m.role">
             <div class="bubble">
+              <!-- 检索过程：让「怎么找到这几段原文的」在界面上可见，而不是黑盒 -->
+              <div v-if="m.retrieval" class="retrieval-bar">
+                <el-icon><Search /></el-icon>
+                <span>向量召回 <b>{{ m.retrieval.vector }}</b> 条</span>
+                <span v-if="m.retrieval.useKeyword">· 关键词召回 <b>{{ m.retrieval.lexical }}</b> 条</span>
+                <span v-else class="off">· 关键词召回已关闭</span>
+                <span>→ 融合取前 <b>{{ m.retrieval.fused }}</b> 条送入提示词</span>
+              </div>
               <div v-if="m.role === 'assistant' && m.reasoning" class="reasoning">{{ m.reasoning }}</div>
               <div class="md answer-md" :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }" v-html="render(m.content)"></div>
               <div v-if="m.role === 'assistant' && m.model_name && i === messages.length - 1 && !streaming" class="meta">
@@ -385,9 +393,17 @@ async function send() {
         },
         onRetrieval: (d) => {
           if (d.note) notice.value = d.note
+          // 检索过程挂在这条回答上，聊天气泡里直接展示（仅前端内存，刷新后不保留）
+          reply.retrieval = {
+            vector: d.vector_count ?? 0,
+            lexical: d.lexical_count ?? 0,
+            fused: 0,
+            useKeyword: useKeyword.value,
+          }
         },
         onCitations: (d) => {
           citations.value = d.items as Citation[]
+          if (reply.retrieval) reply.retrieval.fused = citations.value.length
         },
         onReasoning: (d) => {
           reply.reasoning = (reply.reasoning || '') + d.text
@@ -652,6 +668,29 @@ onMounted(loadAll)
         padding: 12px 16px;
         border-radius: 10px;
         font-size: 14px;
+
+        /* 检索过程条：弱化处理，别抢正文的注意力 */
+        .retrieval-bar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          margin: -2px 0 10px;
+          padding-bottom: 8px;
+          border-bottom: 1px dashed var(--line-soft);
+          color: var(--ink-3);
+          font-size: 12px;
+          line-height: 1.6;
+
+          b {
+            color: var(--brand);
+            font-weight: 600;
+          }
+
+          .off {
+            color: #e6a23c;
+          }
+        }
 
         .reasoning {
           padding: 8px 10px;

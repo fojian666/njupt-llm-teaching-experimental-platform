@@ -153,11 +153,24 @@ export interface ChatMessage {
   content: string
   reasoning?: string
   citations?: Citation[]
+  /** 本次回答的检索过程，仅前端内存保留（后端未持久化），用于展示可解释性 */
+  retrieval?: RetrievalMeta
   model_name?: string
   latency_ms?: number
   is_error?: boolean
   feedback?: string | null
   created_at?: string
+}
+
+export interface RetrievalMeta {
+  /** 向量召回候选条数 */
+  vector: number
+  /** 关键词召回候选条数 */
+  lexical: number
+  /** 融合后进入提示词的条数 */
+  fused: number
+  /** 本次是否启用了关键词召回 */
+  useKeyword: boolean
 }
 
 // ---------------- 配置中心 ----------------

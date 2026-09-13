@@ -19,6 +19,7 @@ import {
   FolderOpened,
   Lock,
   MagicStick,
+  Search,
   Setting,
   User,
 } from '@element-plus/icons-vue'
@@ -51,6 +52,7 @@ const icons = {
   Collection,
   Setting,
   ChatDotRound,
+  Search,
   ArrowDown,
   ArrowDownBold,
   CircleCheck,

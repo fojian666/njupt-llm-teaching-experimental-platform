@@ -15,10 +15,11 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-WORKSPACE = Path("/Users/chenguangxi/南京邮电大学物联网学科大模型教学实验平台")
+WORKSPACE = Path(settings.BASE_DIR).resolve().parent  # 仓库根目录：从 settings 推导，别人 clone 到哪都成立
 OCR_DIR = WORKSPACE / "ocr" / "物联网工程导论第2版"
+SAMPLE_DIR = WORKSPACE / "示例语料"
 
-# (源文件名, 分类路径, 上传方式, 标签, 来源说明)
+# (相对仓库根的路径, 分类路径, 上传方式, 标签, 来源说明)
 DATASETS = [
     ("0.1-物联网学院简介-2025.8.17(2).docx", "01 学院概况", "upload", ["学院简介"], "学院对外简介材料"),
     ("3-2025级-物联网工程专业培养方案20250813.docx", "02 培养方案/物联网工程", "upload", ["2025级", "培养方案"], "2025 级物联网工程专业培养方案"),
@@ -26,6 +27,11 @@ DATASETS = [
     ("5-地理信息科学专业培养方案.doc", "02 培养方案/地理信息科学", "upload", ["2025级", "培养方案"], "2025 级地理信息科学专业培养方案"),
     ("物联网概论(第3版) (韩毅刚,肖纯贤) (z-library.sk, 1lib.sk, z-lib.sk).epub", "03 专业教材/物联网概论", "upload", ["核心教材"], "物联网概论（第3版）"),
     ("物联网工程导论 第2版 (吴功宜) (z-library.sk, 1lib.sk, z-lib.sk).pdf", "03 专业教材/物联网工程导论", "ocr", ["核心教材", "扫描件"], "扫描版教材，需先 OCR"),
+    # 原创示例语料：随仓库分发，clone 后无需任何外部素材也能把问答链路跑通
+    ("示例语料/01-物联网感知层技术概览.md", "05 原创示例语料", "upload", ["原创示例"], "平台自带的原创教学语料，可自由替换"),
+    ("示例语料/02-物联网网络层与通信技术.md", "05 原创示例语料", "upload", ["原创示例"], "平台自带的原创教学语料，可自由替换"),
+    ("示例语料/03-物联网数据处理与安全.md", "05 原创示例语料", "upload", ["原创示例"], "平台自带的原创教学语料，可自由替换"),
+    ("示例语料/04-物联网典型应用案例选讲.md", "05 原创示例语料", "upload", ["原创示例"], "平台自带的原创教学语料，可自由替换"),
 ]
 
 # (上级分类路径, 分类名称, 排序) —— 必须父级在前，这样一次遍历就能建完整棵树
@@ -39,6 +45,14 @@ CATEGORIES = [
     ("03 专业教材", "物联网工程导论", 1),
     ("03 专业教材", "物联网概论", 2),
     ("", "04 规章制度", 4),
+    ("", "05 原创示例语料", 5),
+]
+
+# 演示账号与密码。登录页上写的就是这几个，改这里必须同步改前端登录页的提示。
+DEMO_USERS = [
+    ("admin", "admin123", "admin", "平台管理员", True),
+    ("teacher", "teacher123", "teacher", "张老师", False),
+    ("student", "student123", "student", "李同学", False),
 ]
 
 
@@ -48,6 +62,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--skip-index", action="store_true", help="不做切片与向量化")
         parser.add_argument("--reset", action="store_true", help="先清空业务数据")
+        parser.add_argument("--reset-passwords", action="store_true",
+                            help="把演示账号的密码强制重置为约定值（admin123 等）")
 
     def handle(self, *args, **options):
         from apps.accounts.models import User
@@ -71,12 +87,7 @@ class Command(BaseCommand):
             OperationLog.objects.all().delete()
 
         # ---------------- 账号 ----------------
-        users = [
-            ("admin", "admin123456", "admin", "平台管理员", True),
-            ("teacher", "teacher123456", "teacher", "张老师", False),
-            ("student", "student123456", "student", "李同学", False),
-        ]
-        for username, password, role, display, is_staff in users:
+        for username, password, role, display, is_staff in DEMO_USERS:
             user, created = User.objects.get_or_create(
                 username=username,
                 defaults={"role": role, "display_name": display, "is_staff": is_staff, "is_superuser": is_staff},
@@ -85,6 +96,17 @@ class Command(BaseCommand):
                 user.set_password(password)
                 user.save()
                 self.stdout.write(f"  建账号 {username} / {password}")
+            elif options["reset_passwords"]:
+                user.set_password(password)
+                user.save()
+                self.stdout.write(f"  重置密码 {username} / {password}")
+            elif not user.check_password(password):
+                # 密码对不上是个隐蔽的坑：登录页写着 admin123，库里却是旧的 admin123456，
+                # 表现就是"演示时怎么都登不进去"。这里明确提示，并给出修复命令。
+                self.stdout.write(self.style.WARNING(
+                    f"  账号 {username} 已存在，但密码与演示约定（{password}）不一致"
+                    f"；如需重置：python manage.py seed_demo --reset-passwords"
+                ))
             else:
                 self.stdout.write(f"  账号已存在 {username}")
 
@@ -135,7 +157,7 @@ class Command(BaseCommand):
         tag_map = {}
         for name, color in [
             ("核心教材", "#378ADD"), ("培养方案", "#1D9E75"), ("2025级", "#BA7517"),
-            ("扫描件", "#D4537E"), ("学院简介", "#7F77DD"),
+            ("扫描件", "#D4537E"), ("学院简介", "#7F77DD"), ("原创示例", "#5B8FF9"),
         ]:
             tag_map[name], _ = DataTag.objects.get_or_create(name=name, defaults={"color": color})
 
@@ -152,10 +174,11 @@ class Command(BaseCommand):
         )
 
         with transaction.atomic():
-            for filename, category_path, method, tags, note in DATASETS:
-                src = WORKSPACE / filename
+            for rel_path, category_path, method, tags, note in DATASETS:
+                src = WORKSPACE / rel_path
+                filename = Path(rel_path).name
                 if not src.exists():
-                    self.stdout.write(self.style.WARNING(f"  缺失文件，跳过：{filename}"))
+                    self.stdout.write(self.style.WARNING(f"  缺失文件，跳过：{rel_path}"))
                     continue
 
                 resource, created = DataResource.objects.get_or_create(
@@ -232,9 +255,9 @@ class Command(BaseCommand):
             self._index_all(kb)
 
         self.stdout.write(self.style.SUCCESS("\n演示数据就绪。"))
-        self.stdout.write("  登录账号：admin / admin123456（管理员）")
-        self.stdout.write("            teacher / teacher123456（教师）")
-        self.stdout.write("            student / student123456（学生）")
+        self.stdout.write("  登录账号：admin / admin123（管理员）")
+        self.stdout.write("            teacher / teacher123（教师）")
+        self.stdout.write("            student / student123（学生）")
 
     # ------------------------------------------------------------------
     def _index_all(self, kb):

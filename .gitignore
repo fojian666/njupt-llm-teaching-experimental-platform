@@ -22,3 +22,6 @@ frontend/dist/
 *.epub
 ocr/
 演示视频.mp4
+
+# ---- 评测脚本的查询向量缓存（重新取向量：加 --no-cache）----
+backend/.eval_query_cache.json
