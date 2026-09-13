@@ -29,3 +29,5 @@ backend/.eval_query_cache.json
 # ---- 评测生成的报告，只留本地不上传 ----
 检索评测报告.md
 可用性健康分.md
+演示脚本.md
+项目理解与建设方案.md
