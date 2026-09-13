@@ -92,27 +92,34 @@ class Retriever:
             result.note = f"向量召回不可用（{exc}），已退化为关键词检索。"
 
         # ---- 第二路：关键词召回 ----
-        lexical_rank: dict[int, float] = {}
+        # 粗筛规模维持原样（top_k × 4）；精排统一放在融合前对所有候选做，
+        # 而不是只给关键词通道自己召回的候选算分。
+        lexical_ids: list[int] = []
         if opts.use_keyword:
             try:
-                cand_ids = lexical_candidates(query, opts.top_k, opts.knowledge_base_ids)
-                details = fetch_chunks(cand_ids)
-                docs = [details[cid]["content"] for cid in cand_ids if cid in details]
-                scores = _bm25_scores(query, docs)
-                for cid, score in zip(cand_ids, scores):
-                    lexical_rank[cid] = score
+                lexical_ids = lexical_candidates(query, opts.top_k, opts.knowledge_base_ids)
             except Exception as exc:  # noqa: BLE001
                 result.note = (result.note + f" 关键词召回不可用（{exc}）。").strip()
 
         result.vector_count = len(vector_rank)
-        result.lexical_count = len(lexical_rank)
+        result.lexical_count = len(lexical_ids)
 
         # ---- 融合 ----
-        all_ids = list(dict.fromkeys([*vector_rank, *lexical_rank]))
+        all_ids = list(dict.fromkeys([*vector_rank, *lexical_ids]))
         if not all_ids:
             return result
 
         details = fetch_chunks(all_ids)
+
+        # 关键词分数对全部候选统一计算。此前只给关键词通道自己召回的候选打分，
+        # 其余候选按 0 分参与融合——向量分再高的片段也会被硬扣 (1-α) 份额，
+        # 综合分因此失真（实测：向量分全场最高的片段综合分垫底）。
+        lexical_rank: dict[int, float] = {}
+        if lexical_ids:
+            scored_ids = [cid for cid in all_ids if cid in details]
+            scores = _bm25_scores(query, [details[cid]["content"] for cid in scored_ids])
+            lexical_rank = dict(zip(scored_ids, scores))
+
         w_vector = opts.alpha if vector_rank else 0.0
         w_lexical = (1.0 - opts.alpha) if lexical_rank else 0.0
         if w_vector + w_lexical == 0:
