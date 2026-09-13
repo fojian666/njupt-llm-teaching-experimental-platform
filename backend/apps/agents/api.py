@@ -8,12 +8,13 @@
 """
 import json
 import time
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from django.db.models import Count
 from django.http import StreamingHttpResponse
 from ninja import Router, Schema
 from ninja.errors import HttpError
+from pydantic import StringConstraints
 
 from apps.common.api import current_user, log_action, paginate, require_manager
 
@@ -26,7 +27,9 @@ router = Router(tags=["智能体中心"])
 # Schema
 # --------------------------------------------------------------------------
 class AgentIn(Schema):
-    name: str
+    # 必填校验放 Schema 层：ninja 的 required 只拦"字段缺失"，不拦空串，
+    # 空名字智能体就是这么建出来的。strip_whitespace 让纯空格也过不去。
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
     code: str = ""
     avatar: str = ""
     description: str = ""

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { providerApi, modelApi, statusApi } from '@/api/configs'
 import type { ModelProvider, ModelConfig } from '@/types'
 
@@ -21,6 +21,18 @@ const modelsByProvider = computed(() => {
 
 // ---------------- 供应商 ----------------
 const providerDialog = ref(false)
+const providerFormRef = ref<FormInstance>()
+const providerRules: FormRules = {
+  name: [{ required: true, message: '请填写供应商名称', trigger: 'blur' }],
+  code: [
+    { required: true, message: '请填写唯一标识（英文）', trigger: 'blur' },
+    { pattern: /^[a-z0-9-]+$/, message: '只能用小写字母、数字和中划线', trigger: 'blur' },
+  ],
+  base_url: [
+    { required: true, message: '请填写 API Base URL', trigger: 'blur' },
+    { pattern: /^https?:\/\//, message: '需以 http(s):// 开头', trigger: 'blur' },
+  ],
+}
 const providerForm = reactive({
   id: 0, name: '', code: '', base_url: '', api_key: '', is_active: true, sort: 0, remark: '',
 })
@@ -33,6 +45,8 @@ function openEditProvider(p: ModelProvider) {
   providerDialog.value = true
 }
 async function saveProvider() {
+  const ok = await providerFormRef.value?.validate().then(() => true).catch(() => false)
+  if (!ok) return
   const payload = { ...providerForm }
   if (!providerForm.id) delete (payload as any).id
   if (providerForm.id) await providerApi.update(providerForm.id, payload)
@@ -49,6 +63,13 @@ async function removeProvider(p: ModelProvider) {
 
 // ---------------- 模型 ----------------
 const modelDialog = ref(false)
+const modelFormRef = ref<FormInstance>()
+const modelRules: FormRules = {
+  name: [{ required: true, message: '请填写模型名称', trigger: 'blur' }],
+  model_id: [
+    { required: true, message: '请填写模型 ID（接口调用用的那个）', trigger: 'blur' },
+  ],
+}
 const modelForm = reactive({
   id: 0, provider_id: 0, name: '', model_id: '', kind: 'llm',
   dimension: null as number | null, max_tokens: 4096, temperature: 0.3,
@@ -67,6 +88,8 @@ function openEditModel(m: ModelConfig) {
   modelDialog.value = true
 }
 async function saveModel() {
+  const ok = await modelFormRef.value?.validate().then(() => true).catch(() => false)
+  if (!ok) return
   const payload = { ...modelForm }
   if (!modelForm.id) delete (payload as any).id
   if (modelForm.id) await modelApi.update(modelForm.id, payload)
@@ -194,10 +217,10 @@ onMounted(load)
     </el-card>
 
     <el-dialog v-model="providerDialog" :title="providerForm.id ? '编辑供应商' : '新建供应商'" width="520">
-      <el-form label-width="90">
-        <el-form-item label="名称"><el-input v-model="providerForm.name" placeholder="如 DeepSeek" /></el-form-item>
-        <el-form-item label="标识"><el-input v-model="providerForm.code" placeholder="如 deepseek（唯一，建好后不可改）" /></el-form-item>
-        <el-form-item label="Base URL"><el-input v-model="providerForm.base_url" placeholder="https://api.deepseek.com/v1" /></el-form-item>
+      <el-form ref="providerFormRef" :model="providerForm" :rules="providerRules" label-width="90">
+        <el-form-item label="名称" prop="name"><el-input v-model="providerForm.name" placeholder="如 DeepSeek" /></el-form-item>
+        <el-form-item label="标识" prop="code"><el-input v-model="providerForm.code" placeholder="如 deepseek（唯一，建好后不可改）" /></el-form-item>
+        <el-form-item label="Base URL" prop="base_url"><el-input v-model="providerForm.base_url" placeholder="https://api.deepseek.com/v1" /></el-form-item>
         <el-form-item label="API Key">
           <el-input v-model="providerForm.api_key" type="password" show-password :placeholder="providerForm.id ? '留空则不修改' : 'sk-...'" />
         </el-form-item>
@@ -211,9 +234,9 @@ onMounted(load)
     </el-dialog>
 
     <el-dialog v-model="modelDialog" :title="modelForm.id ? '编辑模型' : '添加模型'" width="560">
-      <el-form label-width="100">
-        <el-form-item label="名称"><el-input v-model="modelForm.name" /></el-form-item>
-        <el-form-item label="模型 ID"><el-input v-model="modelForm.model_id" placeholder="如 deepseek-chat / text-embedding-3-small" /></el-form-item>
+      <el-form ref="modelFormRef" :model="modelForm" :rules="modelRules" label-width="100">
+        <el-form-item label="名称" prop="name"><el-input v-model="modelForm.name" /></el-form-item>
+        <el-form-item label="模型 ID" prop="model_id"><el-input v-model="modelForm.model_id" placeholder="如 deepseek-chat / text-embedding-3-small" /></el-form-item>
         <el-form-item label="类型">
           <el-radio-group v-model="modelForm.kind">
             <el-radio-button value="llm">大语言模型</el-radio-button>

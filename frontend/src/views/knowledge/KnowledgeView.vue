@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { kbApi, resourceApi } from '@/api/datasets'
 import type { KnowledgeBase, KnowledgeDoc, Chunk, Citation, DataResource } from '@/types'
 
@@ -10,6 +10,13 @@ const current = ref<KnowledgeBase | null>(null)
 const loading = ref(false)
 
 const kbDialog = ref(false)
+const kbFormRef = ref<FormInstance>()
+const kbRules: FormRules = {
+  name: [
+    { required: true, message: '请填写知识库名称', trigger: 'blur' },
+    { max: 128, message: '名称不能超过 128 个字', trigger: 'blur' },
+  ],
+}
 const kbForm = reactive<Record<string, any>>({
   id: 0, name: '', code: '', description: '',
   chunk_size: 500, chunk_overlap: 80, chunk_strategy: 'heading',
@@ -40,6 +47,8 @@ function openEditKB() {
   kbDialog.value = true
 }
 async function saveKB() {
+  const ok = await kbFormRef.value?.validate().then(() => true).catch(() => false)
+  if (!ok) return
   const payload = { ...kbForm }
   if (!kbForm.id) delete payload.id
   if (kbForm.id) await kbApi.update(kbForm.id, payload)
@@ -307,8 +316,8 @@ onMounted(loadKBs)
     </el-dialog>
 
     <el-dialog v-model="kbDialog" :title="kbForm.id ? '编辑知识库' : '新建知识库'" width="520">
-      <el-form label-width="110">
-        <el-form-item label="名称"><el-input v-model="kbForm.name" /></el-form-item>
+      <el-form ref="kbFormRef" :model="kbForm" :rules="kbRules" label-width="110">
+        <el-form-item label="名称" prop="name"><el-input v-model="kbForm.name" maxlength="128" show-word-limit /></el-form-item>
         <el-form-item label="标识"><el-input v-model="kbForm.code" placeholder="唯一英文标识" /></el-form-item>
         <el-form-item label="描述"><el-input v-model="kbForm.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="切片大小"><el-input-number v-model="kbForm.chunk_size" :min="100" :max="4000" :step="100" /></el-form-item>

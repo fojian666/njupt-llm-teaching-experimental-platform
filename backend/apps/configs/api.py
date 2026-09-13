@@ -2,11 +2,12 @@
 
 对应演示视频的「配置中心」。这一层是纯管理面，写操作都要求管理员或教师角色。
 """
-from typing import Optional
+from typing import Annotated, Optional
 
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.pagination import paginate as ninja_paginate  # noqa: F401  （保留给后续分页）
+from pydantic import StringConstraints
 
 from apps.common.api import current_user, log_action, require_manager
 from .models import ModelConfig, ModelProvider, SystemConfig
@@ -19,9 +20,9 @@ router = Router(tags=["配置中心"])
 # Schema
 # --------------------------------------------------------------------------
 class ProviderIn(Schema):
-    name: str
-    code: str
-    base_url: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
+    base_url: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     api_key: str = ""
     is_active: bool = True
     sort: int = 0
@@ -43,8 +44,8 @@ class ProviderOut(Schema):
 
 class ModelIn(Schema):
     provider_id: int
-    name: str
-    model_id: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
+    model_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
     kind: str = "llm"
     dimension: Optional[int] = None
     max_tokens: int = 4096

@@ -50,7 +50,7 @@
     </el-row>
 
     <el-dialog v-model="dialog" :title="form.id ? '编辑分类' : '新建分类'" width="460px">
-      <el-form :model="form" label-width="90px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="90px">
         <el-form-item label="上级分类">
           <el-tree-select
             v-model="form.parent_id"
@@ -63,8 +63,8 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="分类名称" required>
-          <el-input v-model="form.name" placeholder="如：02 培养方案" />
+        <el-form-item label="分类名称" prop="name">
+          <el-input v-model="form.name" placeholder="如：02 培养方案" maxlength="128" show-word-limit />
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sort" :min="0" />
@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { categoryApi } from '@/api/datasets'
 import type { Category } from '@/types'
 
@@ -93,6 +93,13 @@ const dialog = ref(false)
 const saving = ref(false)
 
 const form = ref<Partial<Category>>({ id: undefined, name: '', parent_id: null, sort: 0, remark: '' })
+const formRef = ref<FormInstance>()
+const formRules: FormRules = {
+  name: [
+    { required: true, message: '请填写分类名称', trigger: 'blur' },
+    { max: 128, message: '名称不能超过 128 个字', trigger: 'blur' },
+  ],
+}
 
 /** 上级候选：排除自己（避免把分类挂到自己下面形成环） */
 const parentOptions = computed(() =>
@@ -118,14 +125,15 @@ function openEdit(node: Category | null, parentId?: number) {
 }
 
 async function save() {
-  if (!form.value.name?.trim()) {
-    ElMessage.warning('请填写分类名称')
-    return
-  }
+  // 之前是手写 if(!name) + toast，这里统一走 el-form 的内联校验（红星 + 就地报错）
+  const ok = await formRef.value?.validate().then(() => true).catch(() => false)
+  if (!ok) return
   saving.value = true
   try {
     const payload = {
-      name: form.value.name.trim(),
+      // validate() 通过后 name 必为非空字符串（规则里 required + max128），
+      // 这里的 ! 是给 TS 的窄化提示，不是绕过校验
+      name: form.value.name!.trim(),
       code: form.value.code ?? '',
       parent_id: form.value.parent_id || null,
       sort: form.value.sort ?? 0,

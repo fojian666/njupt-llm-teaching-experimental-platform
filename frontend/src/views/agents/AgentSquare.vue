@@ -58,8 +58,8 @@
 
     <!-- 新建 / 编辑智能体 -->
     <el-dialog v-model="dialog" :title="form.id ? '编辑智能体' : '新建智能体'" width="640" top="5vh">
-      <el-form label-width="110">
-        <el-form-item label="名称"><el-input v-model="form.name" placeholder="如 物联网工程导论助教" /></el-form-item>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="110">
+        <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="如 物联网工程导论助教" maxlength="64" show-word-limit /></el-form-item>
         <el-form-item label="标识"><el-input v-model="form.code" placeholder="唯一英文标识，如 intro-iot-ta" /></el-form-item>
         <el-form-item label="简介"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="欢迎语"><el-input v-model="form.welcome_message" type="textarea" :rows="2" placeholder="打开对话时显示的欢迎消息" /></el-form-item>
@@ -102,6 +102,7 @@ import { kbApi } from '@/api/datasets'
 import { configApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { agentGradient as gradient } from '@/utils/agentColor'
+import type { FormInstance, FormRules } from 'element-plus'
 import type { Agent, KnowledgeBase, LlmOption } from '@/types'
 
 const router = useRouter()
@@ -119,6 +120,14 @@ const llmOptions = ref<LlmOption[]>([])
 
 const dialog = ref(false)
 const saving = ref(false)
+const formRef = ref<FormInstance>()
+// 必填校验：拦在界面上，而不是等后端 422 再弹一条没头没尾的 toast
+const rules: FormRules = {
+  name: [
+    { required: true, message: '请填写智能体名称', trigger: 'blur' },
+    { max: 64, message: '名称不能超过 64 个字', trigger: 'blur' },
+  ],
+}
 const form = reactive<Record<string, any>>({
   id: 0, name: '', code: '', description: '', welcome_message: '', suggestedText: '',
   system_prompt: '', model_id: null as number | null, knowledge_base_ids: [] as number[],
@@ -159,6 +168,8 @@ function openEdit(a: Agent) {
 
 async function save() {
   if (saving.value) return // 防重复提交：连点两次会建出两个智能体
+  const ok = await formRef.value?.validate().then(() => true).catch(() => false)
+  if (!ok) return
   saving.value = true
   const payload = {
     name: form.name,

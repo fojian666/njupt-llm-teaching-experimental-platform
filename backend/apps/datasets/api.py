@@ -3,12 +3,13 @@
 对应演示视频的「数据管理 → 数据分类管理」：
 左侧分类树、右侧数据列表、上传、解析、打标、删除。
 """
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from django.db.models import Count, Q
 from ninja import File, Form, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
+from pydantic import StringConstraints
 
 from apps.common.api import current_user, log_action, require_manager
 from apps.common.tasks import run_task
@@ -24,7 +25,8 @@ router = Router(tags=["数据管理"])
 # Schema
 # --------------------------------------------------------------------------
 class CategoryIn(Schema):
-    name: str
+    # 同 AgentIn.name：空串/纯空格在 Schema 层直接 422
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
     code: str = ""
     parent_id: Optional[int] = None
     sort: int = 0
@@ -47,7 +49,8 @@ CategoryOut.model_rebuild()
 
 
 class TagIn(Schema):
-    name: str
+    # DataTag.name 有 unique 约束，空串标签建第二个会直接撞唯一约束 500
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
     color: str = "#378ADD"
 
 

@@ -3,12 +3,13 @@
 对应演示视频的「数据管理 → 知识管理」：
 知识库详情（解析状态、是否有效）、导入知识、切片列表、切片详情（文件名 + 章节路径 + 正文）。
 """
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from django.db.models import Count, Q
 from django.utils import timezone
 from ninja import Router, Schema
 from ninja.errors import HttpError
+from pydantic import StringConstraints
 
 from apps.common.api import current_user, log_action, paginate, require_manager
 from apps.common.tasks import run_task
@@ -23,7 +24,7 @@ router = Router(tags=["知识管理"])
 # Schema
 # --------------------------------------------------------------------------
 class KBIn(Schema):
-    name: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
     code: str = ""
     description: str = ""
     embedding_model_id: Optional[int] = None
