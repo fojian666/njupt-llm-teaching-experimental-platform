@@ -14,6 +14,7 @@ import {
   CircleCloseFilled,
   Collection,
   Cpu,
+  DocumentCopy,
   Expand,
   Files,
   Fold,
@@ -21,6 +22,7 @@ import {
   Lock,
   MagicStick,
   MoreFilled,
+  Promotion,
   Search,
   Setting,
   User,
@@ -52,6 +54,7 @@ const icons = {
   FolderOpened,
   Files,
   Collection,
+  DocumentCopy,
   Setting,
   ChatDotRound,
   Search,
@@ -63,6 +66,7 @@ const icons = {
   CircleClose,
   CircleCloseFilled,
   MoreFilled,
+  Promotion,
 }
 
 for (const [name, component] of Object.entries(icons)) {

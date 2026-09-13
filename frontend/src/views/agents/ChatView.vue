@@ -59,32 +59,39 @@
             </div>
 
             <div class="body">
-              <div v-if="m.retrieval" class="retrieval-bar">
-                <el-icon><Search /></el-icon>
-                <span>向量召回 <b>{{ m.retrieval.vector }}</b> 条</span>
-                <span v-if="m.retrieval.useKeyword">· 关键词召回 <b>{{ m.retrieval.lexical }}</b> 条</span>
-                <span v-else class="off">· 关键词召回已关闭</span>
-                <span>→ 融合取前 <b>{{ m.retrieval.fused }}</b> 条</span>
-              </div>
+              <!-- 助手：检索过程 / 思考 / markdown 正文 / 操作条 -->
+              <template v-if="m.role === 'assistant'">
+                <div v-if="m.retrieval" class="retrieval-bar">
+                  <el-icon><Search /></el-icon>
+                  <span>向量召回 <b>{{ m.retrieval.vector }}</b> 条</span>
+                  <span v-if="m.retrieval.useKeyword">· 关键词召回 <b>{{ m.retrieval.lexical }}</b> 条</span>
+                  <span v-else class="off">· 关键词召回已关闭</span>
+                  <span>→ 融合取前 <b>{{ m.retrieval.fused }}</b> 条</span>
+                </div>
 
-              <div v-if="m.reasoning" class="reasoning">{{ m.reasoning }}</div>
+                <div v-if="m.reasoning" class="reasoning">{{ m.reasoning }}</div>
 
-              <div
-                class="md answer-md"
-                :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }"
-                v-html="render(m.content)"
-              ></div>
+                <div
+                  class="md answer-md"
+                  :class="{ 'streaming-cursor': i === messages.length - 1 && streaming }"
+                  v-html="render(m.content)"
+                ></div>
 
-              <div v-if="m.role === 'assistant' && !streaming" class="msg-actions">
-                <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
-                  <el-icon><DocumentCopy /></el-icon>
-                </el-button>
-                <template v-if="m.model_name && i === messages.length - 1">
-                  <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
-                  <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
-                  <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
-                </template>
-              </div>
+                <div v-if="!streaming" class="msg-actions">
+                  <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
+                    <el-icon><DocumentCopy /></el-icon>
+                  </el-button>
+                  <template v-if="m.model_name && i === messages.length - 1">
+                    <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
+                    <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
+                    <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+                  </template>
+                </div>
+              </template>
+
+              <!-- 用户：纯文本直出。不走 markdown —— 用户打的 *星号* 就该显示成字面星号；
+                   而且 markdown 的 <p> 自带下边距，会把蓝色胶囊下方撑出一大块空白 -->
+              <template v-else>{{ m.content }}</template>
             </div>
           </div>
         </div>
