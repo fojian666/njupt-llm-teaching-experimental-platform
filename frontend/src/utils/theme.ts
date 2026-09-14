@@ -43,11 +43,25 @@ export function resolveInitialTheme(): ThemeMode {
   return systemPrefersDark() ? 'dark' : 'light'
 }
 
+/**
+ * 科技风要**同时**挂 dark 与 tech 两个类。
+ *
+ * 原因：Element Plus 的组件级暗色支持（弹窗、下拉、选择器、分页、树、空态……
+ * 几百个变量）只认 `html.dark`，那套变量是官方维护、覆盖最完整的。
+ * 只挂 tech 的话只能靠手写覆盖，必然漏 —— 表现就是"页面是深色，弹出来一片白"。
+ * 所以：dark 负责把 Element 组件整体切暗，tech 在其上做品牌与玻璃质感的着色。
+ * CSS 顺序上我们的样式在 Element 之后加载，同优先级下 tech 的令牌会胜出。
+ */
+function modeClasses(mode: ThemeMode): ThemeMode[] {
+  if (mode === 'tech') return ['dark', 'tech']
+  if (mode === 'dark') return ['dark']
+  return []
+}
+
 function apply(mode: ThemeMode) {
   const root = document.documentElement
-  // 先清掉其它主题的类，避免出现 dark + tech 同时挂着
   root.classList.remove(...ALL_CLASSES)
-  if (mode !== 'light') root.classList.add(mode)
+  for (const cls of modeClasses(mode)) root.classList.add(cls)
   // 让原生控件（滚动条、表单、日期选择器）也切到对应配色
   root.style.colorScheme = mode === 'light' ? 'light' : 'dark'
   theme.value = mode

@@ -12,8 +12,13 @@
         try {
           var saved = localStorage.getItem('iot-edu-theme')
           var mode = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-          if (mode === 'dark' || mode === 'tech') {
-            document.documentElement.classList.add(mode)
+          // 科技风同时挂 dark：Element 的组件级暗色变量只认 .dark，
+          // 少了它，弹窗/下拉/选择器这些会保持白底。逻辑与 utils/theme.ts 一致。
+          if (mode === 'tech') {
+            document.documentElement.classList.add('dark', 'tech')
+            document.documentElement.style.colorScheme = 'dark'
+          } else if (mode === 'dark') {
+            document.documentElement.classList.add('dark')
             document.documentElement.style.colorScheme = 'dark'
           }
         } catch (e) {
