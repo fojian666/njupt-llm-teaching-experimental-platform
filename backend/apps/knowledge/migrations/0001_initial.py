@@ -6,6 +6,8 @@ import pgvector.django.vector
 from django.conf import settings
 from django.db import migrations, models
 
+from pgvector.django import VectorExtension
+
 
 class Migration(migrations.Migration):
 
@@ -18,6 +20,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # 建 Chunk 表之前必须先有 vector 扩展：向量列与 HNSW 索引都依赖它。
+        # 这个操作是 CREATE EXTENSION IF NOT EXISTS，幂等的 ——
+        # 早期靠手工 psql 建过扩展的库执行到这里是空操作，不会重复创建。
+        VectorExtension(),
         migrations.CreateModel(
             name='KnowledgeBase',
             fields=[

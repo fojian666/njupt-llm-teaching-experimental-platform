@@ -1,30 +1,13 @@
 <template>
   <div class="chat-wrap">
-    <!-- 左侧：会话历史 -->
-    <div class="side">
-      <div class="side-head">
-        <el-input v-model="convKeyword" placeholder="搜索会话" clearable size="small" style="margin-bottom: 8px" />
-        <el-button type="primary" class="new-btn" @click="newConversation">新建会话</el-button>
-      </div>
-      <div class="conv-list">
-        <template v-for="g in groupedConversations" :key="g.label">
-          <div class="conv-group">{{ g.label }}</div>
-          <div
-            v-for="c in g.items"
-            :key="c.id"
-            class="conv-item"
-            :class="{ active: c.id === conversationId }"
-            @click="openConversation(c.id)"
-          >
-            <span class="ctitle">{{ c.title || '新会话' }}</span>
-            <button class="conv-del" title="删除会话" @click.stop="delConversation(c)">
-              <el-icon><Delete /></el-icon>
-            </button>
-          </div>
-        </template>
-        <el-empty v-if="!groupedConversations.length" description="暂无会话" :image-size="54" />
-      </div>
-    </div>
+    <!-- 左侧：会话历史（分组与搜索在组件内） -->
+    <ConversationList
+      :conversations="conversations"
+      :active-id="conversationId"
+      @open="openConversation"
+      @remove="delConversation"
+      @create="newConversation"
+    />
 
     <!-- 中间：对话区 -->
     <div class="main">
@@ -195,10 +178,13 @@
           class="citation-item"
           :class="{ 'is-cited': c.cited }"
           :style="{ '--i': Math.min(c.index, 10) }"
+          title="查看该切片全文"
+          @click="openCitation(c)"
         >
           <div class="cite-top">
             <span class="idx">[{{ c.index }}]</span>
             <span class="src">{{ c.source_name }}</span>
+            <el-icon class="open-ico"><ArrowRight /></el-icon>
           </div>
           <div class="path">{{ c.chapter_path || '（无章节路径）' }}</div>
           <div class="snippet">{{ c.snippet }}</div>
@@ -210,6 +196,25 @@
         <el-empty v-if="!citations.length" description="尚未检索" :image-size="60" />
       </div>
     </div>
+
+    <!-- 引用详情：点来源面板的条目看切片全文 -->
+    <el-drawer v-model="citeDrawer" size="560px" :title="`切片详情 [#${citeChunk?.seq ?? ''}]`">
+      <div v-loading="citeLoading">
+        <el-descriptions v-if="citeCurrent" :column="1" border size="small">
+          <el-descriptions-item label="来源文件">{{ citeCurrent.source_name }}</el-descriptions-item>
+          <el-descriptions-item label="章节路径">{{ citeCurrent.chapter_path || '（无章节路径）' }}</el-descriptions-item>
+          <el-descriptions-item label="切片编号">#{{ citeCurrent.index }}</el-descriptions-item>
+          <el-descriptions-item label="相关度">
+            综合 {{ citeCurrent.score.toFixed(3) }} · 向量 {{ citeCurrent.vector_score.toFixed(3) }} · 关键词 {{ citeCurrent.lexical_score.toFixed(3) }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <div class="cite-body-head">
+          <span>切片全文</span>
+          <el-button link size="small" @click="copyChunk">复制</el-button>
+        </div>
+        <pre class="cite-body">{{ citeChunk?.content || '加载中…' }}</pre>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -261,7 +266,8 @@ import { kbApi } from '@/api/datasets'
 import { configApi } from '@/api/auth'
 import { streamChat } from '@/api/sse'
 import { agentGradient } from '@/utils/agentColor'
-import type { Agent, ChatMessage, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
+import ConversationList from './components/ConversationList.vue'
+import type { Agent, ChatMessage, Chunk, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -365,30 +371,7 @@ function newConversation() {
 }
 
 // ---------- 会话分组与搜索 ----------
-// 演示视频里的侧栏按「今天 / 近七天」分组，另带关键词搜索；分组只在前端算。
-const convKeyword = ref('')
-const filteredConversations = computed(() => {
-  const kw = convKeyword.value.trim().toLowerCase()
-  if (!kw) return conversations.value
-  return conversations.value.filter((c) => (c.title || '').toLowerCase().includes(kw))
-})
-const groupedConversations = computed(() => {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const sevenDaysAgo = startOfToday - 6 * 86_400_000
-  const groups: { label: string; items: Conversation[] }[] = [
-    { label: '今天', items: [] },
-    { label: '近七天', items: [] },
-    { label: '更早', items: [] },
-  ]
-  for (const c of filteredConversations.value) {
-    const t = new Date(String(c.updated_at).replace(' ', 'T')).getTime()
-    if (!Number.isFinite(t) || t < sevenDaysAgo) groups[2].items.push(c)
-    else if (t >= startOfToday) groups[0].items.push(c)
-    else groups[1].items.push(c)
-  }
-  return groups.filter((g) => g.items.length)
-})
+// 分组、搜索与侧栏渲染都收在 ConversationList 组件里，这里只保留会话数据本身。
 
 // ---------- 推荐问题「换一批」 ----------
 const sugOffset = ref(0)
@@ -582,6 +565,39 @@ async function rate(m: ChatMessage, rating: 'like' | 'dislike') {
   ElMessage.success('感谢反馈')
 }
 
+// ---------- 引用详情：点来源面板看切片全文 ----------
+// 来源面板里的内容是截断的，这里按 chunk_id 取回完整切片（含编号与字符数）
+const citeDrawer = ref(false)
+const citeLoading = ref(false)
+const citeCurrent = ref<Citation | null>(null)
+const citeChunk = ref<Chunk | null>(null)
+
+async function openCitation(c: Citation) {
+  citeCurrent.value = c
+  citeChunk.value = null
+  citeDrawer.value = true
+  citeLoading.value = true
+  try {
+    citeChunk.value = await kbApi.chunk(c.chunk_id)
+  } catch {
+    ElMessage.error('切片已不存在（可能已被删除或移出知识库）')
+    citeDrawer.value = false
+  } finally {
+    citeLoading.value = false
+  }
+}
+
+async function copyChunk() {
+  const text = citeChunk.value?.content
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制切片全文')
+  } catch {
+    ElMessage.warning('浏览器拒绝了剪贴板访问')
+  }
+}
+
 /** 一键复制回答正文（复制的是 markdown 原文，粘到别处仍可再渲染） */
 async function copyAnswer(m: ChatMessage) {
   try {
@@ -617,6 +633,7 @@ async function delConversation(c: Conversation) {
   }
   await agentApi.removeConversation(c.id)
   conversations.value = conversations.value.filter((x) => x.id !== c.id)
+  refreshAgentStats() // 会话数变了，页头统计同步
   if (conversationId.value === c.id) {
     conversationId.value = 0
     messages.value = []
@@ -643,96 +660,10 @@ onMounted(loadAll)
   overflow: hidden;
 }
 
+/* 右侧检索来源面板。左侧会话栏已拆成 ConversationList 组件，样式跟着组件走了 */
 .side {
-  width: 232px;
-  background: #fbfbfd; /* iOS 侧栏那种极淡的灰 */
-  border-right: 1px solid rgba(60, 60, 67, 0.08);
   display: flex;
   flex-direction: column;
-
-  .side-head {
-    padding: 12px;
-  }
-
-  .new-btn {
-    width: 100%;
-    border-radius: 10px;
-  }
-
-  .conv-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 8px 12px;
-  }
-
-  /* 选中态用圆角灰底（iOS 列表风格），不用左侧色条 —— 色条太"管理后台"了 */
-  .conv-group {
-    padding: 10px 10px 4px;
-    font-size: 11px;
-    color: var(--ink-3);
-  }
-
-  .conv-item {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding: 9px 10px;
-    margin-bottom: 2px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--ink-2);
-    transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
-
-    &:hover {
-      background: rgba(120, 120, 128, 0.08);
-    }
-
-    &.active {
-      background: rgba(0, 122, 255, 0.1);
-      color: var(--brand-ink);
-      font-weight: 500;
-    }
-
-    .ctitle {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      /* 右侧常留出删除钮的位置，避免标题文字被压在按钮底下 */
-      padding-right: 20px;
-    }
-
-    /* 删除钮：悬停才出现，像 iOS 列表的滑出操作 */
-    .conv-del {
-      position: absolute;
-      right: 6px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: grid;
-      place-items: center;
-      padding: 4px;
-      border: none;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--ink-3);
-      font-size: 13px;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.15s var(--ease), color 0.15s var(--ease),
-        background-color 0.15s var(--ease);
-
-      &:hover {
-        color: #e5484d;
-        background: rgba(229, 72, 77, 0.1);
-      }
-    }
-
-    &:hover .conv-del {
-      opacity: 1;
-    }
-  }
 
   &.right {
     width: 316px;
@@ -768,6 +699,25 @@ onMounted(loadAll)
   border-radius: 12px;
   border-color: rgba(60, 60, 67, 0.1);
   background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: rgba(64, 158, 255, 0.45);
+    box-shadow: 0 2px 10px rgba(64, 158, 255, 0.12);
+
+    .open-ico {
+      opacity: 1;
+      transform: translateX(2px);
+    }
+  }
+
+  .open-ico {
+    margin-left: auto;
+    color: var(--brand);
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+  }
 
   .cite-top {
     display: flex;
@@ -1259,5 +1209,32 @@ onMounted(loadAll)
       gap: 16px;
     }
   }
+}
+
+/* 引用详情抽屉（顶层选择器：抽屉内容 teleport 到 body，嵌套在选择器里会匹配不到） */
+.cite-body-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cite-body {
+  margin: 0;
+  padding: 14px;
+  max-height: 46vh;
+  overflow: auto;
+  background: #fafbfc;
+  border: 1px solid rgba(60, 60, 67, 0.1);
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--ink-1);
 }
 </style>

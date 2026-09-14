@@ -10,13 +10,15 @@ import json
 import time
 from typing import Annotated, List, Optional
 
+from django.conf import settings
+from django.db import close_old_connections
 from django.db.models import Count
 from django.http import StreamingHttpResponse
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from pydantic import StringConstraints
 
-from apps.common.api import current_user, log_action, paginate, require_manager
+from apps.common.api import check_rate_limit, current_user, log_action, paginate, require_manager
 
 from .models import Agent, Conversation, Message
 
@@ -432,6 +434,8 @@ def chat(request, agent_id: int, payload: ChatIn):
     出错时插入 error 事件，但**不中断连接** —— 前端已经渲染了一半的回答不该被清掉。
     """
     user = current_user(request)
+    # 流式问答消耗 token，按用户限流，避免单个账号无限发起
+    check_rate_limit(request, "chat", getattr(settings, "CHAT_RATE_LIMIT_PER_MINUTE", 0))
     agent = (
         Agent.objects.filter(id=agent_id)
         .select_related("model")
@@ -545,6 +549,11 @@ def chat(request, agent_id: int, payload: ChatIn):
                 )
                 return
 
+            # 生成阶段可能持续几十秒，这期间不需要数据库连接 ——
+            # 主动把连接还回池里，避免并发问答把 Postgres 的 max_connections 占满。
+            # 后面若要写回消息，Django 会自己重开连接。
+            close_old_connections()
+
             generator = Generator(llm)
             finished = False
             for ev in generator.stream_answer(
@@ -616,6 +625,9 @@ def chat(request, agent_id: int, payload: ChatIn):
                 completion_tokens=stats.get("completion_tokens", 0),
                 is_error=bool(error_message),
             )
+            # 流结束立即归还连接：这条连接从生成到落库一直挂着，
+            # 不主动关会一直占着，并发下很快撞连接上限
+            close_old_connections()
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"

@@ -470,6 +470,7 @@ def get_chunk(request, chunk_id: int):
         "content": c.content,
         "char_count": c.char_count,
         "has_embedding": c.embedding is not None,
+        "is_active": c.is_active,
     }
 
 

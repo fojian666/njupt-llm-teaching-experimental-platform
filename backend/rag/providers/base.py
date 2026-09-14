@@ -65,10 +65,27 @@ class EmbeddingProvider:
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         raise NotImplementedError
 
+    def _guard_dimension(self, vector: Sequence[float]) -> None:
+        """维度对不上时给一句人话。
+
+        否则错误会以数据库层的「expected N dimensions」冒出来，
+        跟"配置中心里选错了向量模型"完全挂不上钩。
+        """
+        from django.conf import settings
+
+        expected = int(getattr(settings, "EMBEDDING_DIM", 0) or 0)
+        if expected and len(vector) != expected:
+            raise ProviderError(
+                f"向量维度不匹配：模型 {self.model or self.name} 返回 {len(vector)} 维，"
+                f"知识库切片向量列是 {expected} 维。请在配置中心换成同维度的向量模型，"
+                f"或按新维度重建迁移并重新向量化。"
+            )
+
     def embed_one(self, text: str) -> list[float]:
         vectors = self.embed([text])
         if not vectors:
             raise ProviderError("向量模型没有返回结果")
+        self._guard_dimension(vectors[0])
         return vectors[0]
 
     def embed_batched(self, texts: Sequence[str], progress=None) -> list[list[float]]:
@@ -80,7 +97,10 @@ class EmbeddingProvider:
         total = len(texts)
         step = max(1, self.batch_size)
         for start in range(0, total, step):
-            out.extend(self.embed(list(texts[start : start + step])))
+            batch = self.embed(list(texts[start : start + step]))
+            if batch:
+                self._guard_dimension(batch[0])  # 维度错了立即报，别等到写库才炸
+            out.extend(batch)
             if progress is not None:
                 progress(min(start + step, total), total)
         if len(out) != total:

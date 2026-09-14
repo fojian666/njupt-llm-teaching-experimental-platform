@@ -150,10 +150,17 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_BROKER_CONNECTION_TIMEOUT = 2.0
 
 # 后台任务的执行方式（见 apps/common/tasks.py）
-# TASKS_USE_CELERY=False 时，长任务用守护线程跑，请求立即返回、前端轮询状态。
+# TASKS_USE_CELERY=False 时，长任务进本地工作线程池，请求立即返回、前端轮询状态。
 # 生产环境起了 worker 之后把 USE_CELERY 打开即可，前端无需改动。
 TASKS_USE_CELERY = env_bool("TASKS_USE_CELERY", False)
 TASKS_IN_THREAD = env_bool("TASKS_IN_THREAD", True)
+# 本地工作线程池的并发上限：任务会各占一个数据库连接并调用模型接口，
+# 不设上限时批量操作（如批量重新解析）会把连接数和接口限流一起撞爆。
+TASKS_MAX_WORKERS = env_int("TASKS_MAX_WORKERS", 4)
+
+# 聊天接口的每用户限流（次/分钟）：流式问答消耗 token，
+# 不设闸门时单个账号可以无限发起。0 表示不限制。
+CHAT_RATE_LIMIT_PER_MINUTE = env_int("CHAT_RATE_LIMIT_PER_MINUTE", 20)
 
 # --------------------------------------------------------------------------
 # 平台业务配置

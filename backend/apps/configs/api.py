@@ -4,6 +4,7 @@
 """
 from typing import Annotated, Optional
 
+from django.conf import settings
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.pagination import paginate as ninja_paginate  # noqa: F401  （保留给后续分页）
@@ -136,6 +137,27 @@ def list_providers(request):
     return [_provider_out(p) for p in ModelProvider.objects.all()]
 
 
+def _check_embedding_dim(kind: str, dimension: int | None) -> None:
+    """向量模型维度必须与数据库列一致。
+
+    维度不一致时数据库层会直接报维度不匹配，错误信息跟"配置填错了"毫无关联，
+    排查成本高。这里前置拦住，把问题在保存配置的那一刻说清楚。
+    """
+    if kind != "embedding":
+        return
+    expected = getattr(settings, "EMBEDDING_DIM", None)
+    if not expected:
+        return
+    if dimension is None:
+        raise HttpError(400, f"向量模型必须填写向量维度，且需与知识库一致（当前为 {expected}）")
+    if int(dimension) != int(expected):
+        raise HttpError(
+            400,
+            f"向量维度不一致：模型填的是 {dimension}，知识库切片向量列是 {expected}。"
+            f"换用其它维度的模型需要重建迁移并重新向量化全部切片。",
+        )
+
+
 @router.post("/providers", response=ProviderOut)
 def create_provider(request, payload: ProviderIn):
     require_manager(request)
@@ -195,6 +217,7 @@ def create_model(request, payload: ModelIn):
     provider = ModelProvider.objects.filter(id=payload.provider_id).first()
     if provider is None:
         raise HttpError(404, "供应商不存在")
+    _check_embedding_dim(payload.kind, payload.dimension)
     if ModelConfig.objects.filter(
         provider=provider, model_id=payload.model_id, kind=payload.kind
     ).exists():
@@ -214,6 +237,7 @@ def update_model(request, model_id: int, payload: ModelIn):
         raise HttpError(404, "模型不存在")
     data = payload.model_dump()
     provider_id = data.pop("provider_id", None)
+    _check_embedding_dim(data.get("kind", m.kind), data.get("dimension", m.dimension))
     if provider_id and provider_id != m.provider_id:
         provider = ModelProvider.objects.filter(id=provider_id).first()
         if provider is None:

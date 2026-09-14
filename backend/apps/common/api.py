@@ -3,6 +3,7 @@
 放这里而不是在每个 api.py 里各写一份 —— 分页字段名、错误码这些一旦口径不一，
 前端的封装层就得写一堆特判。
 """
+import time
 from typing import Any, Generic, Sequence, TypeVar
 
 from django.http import HttpRequest
@@ -10,6 +11,34 @@ from ninja import Schema
 from ninja.errors import HttpError
 
 T = TypeVar("T")
+
+
+def check_rate_limit(request: HttpRequest, action: str, limit_per_minute: int) -> None:
+    """每用户每分钟的简单限流，超限抛 429。
+
+    计数放在 Django 缓存里，默认是进程内的 locmem，单进程够用；
+    多 worker 部署时把 CACHES 换成 Redis，计数即全局共享。
+    limit_per_minute <= 0 表示不限制。
+    """
+    if limit_per_minute <= 0:
+        return
+    from django.core.cache import cache
+
+    user = getattr(request, "user", None)
+    who = user.id if user is not None and user.is_authenticated else "anon"
+    key = f"ratelimit:{action}:{who}:{int(time.time() // 60)}"
+    count = cache.get(key)
+    if count is None:
+        cache.set(key, 1, timeout=70)
+        count = 1
+    else:
+        try:
+            count = cache.incr(key)
+        except ValueError:  # 键刚好过期
+            cache.set(key, 1, timeout=70)
+            count = 1
+    if count > limit_per_minute:
+        raise HttpError(429, f"操作过于频繁：每分钟最多 {limit_per_minute} 次，请稍后再试")
 
 
 # --------------------------------------------------------------------------

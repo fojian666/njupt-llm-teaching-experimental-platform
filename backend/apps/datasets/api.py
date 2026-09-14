@@ -248,9 +248,29 @@ def _size_label(size: int) -> str:
     return f"{size:.1f} GB"
 
 
-def _resource_out(r: DataResource) -> dict:
+def _kb_names_map(resource_ids: list[int]) -> dict[int, list[str]]:
+    """一次查出这批数据分别进了哪些知识库。
+
+    单条查询逐个查会变成 N+1：列表一页 20 行就是 21 次查询，page_size 调到 100 就是 101 次。
+    """
+    if not resource_ids:
+        return {}
     from apps.knowledge.models import KnowledgeDoc
 
+    mapping: dict[int, list[str]] = {}
+    rows = (
+        KnowledgeDoc.objects.filter(data_resource_id__in=resource_ids)
+        .values_list("data_resource_id", "knowledge_base__name")
+    )
+    for rid, kb_name in rows:
+        mapping.setdefault(rid, []).append(kb_name)
+    return mapping
+
+
+def _resource_out(r: DataResource, kb_names: list[str] | None = None) -> dict:
+    """把一条数据转成接口结构。kb_names 由调用方批量传入，传 None 时按单条查询。"""
+    if kb_names is None:
+        kb_names = _kb_names_map([r.id]).get(r.id, [])
     return {
         "id": r.id,
         "name": r.name,
@@ -269,10 +289,7 @@ def _resource_out(r: DataResource) -> dict:
         "source_note": r.source_note,
         "created_at": r.created_at.strftime("%Y-%m-%d %H:%M"),
         "updated_at": r.updated_at.strftime("%Y-%m-%d %H:%M"),
-        "_kb_names": list(
-            KnowledgeDoc.objects.filter(data_resource=r)
-            .values_list("knowledge_base__name", flat=True)
-        ),
+        "_kb_names": kb_names,
     }
 
 
@@ -324,9 +341,10 @@ def list_resources(
         qs = qs.filter(Q(name__icontains=keyword) | Q(source_note__icontains=keyword))
 
     result = paginate(qs.order_by("-created_at"), page, page_size)
+    kb_map = _kb_names_map([r.id for r in result["items"]])
     rows = []
     for r in result["items"]:
-        data = _resource_out(r)
+        data = _resource_out(r, kb_map.get(r.id, []))
         data["in_knowledge_bases"] = data.pop("_kb_names", [])
         rows.append(data)
     result["items"] = rows

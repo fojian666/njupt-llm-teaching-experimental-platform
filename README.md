@@ -22,11 +22,10 @@
 
 ## 快速开始
 
-1. 建库并启用 vector 扩展：
+1. 建库。vector 扩展由迁移自动创建，不需要手工执行：
 
 ```bash
 createdb iot_edu_platform
-psql -d iot_edu_platform -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
 2. 配置后端。把 `.env.example` 复制为 `backend/.env`，修改以下项：
@@ -59,6 +58,18 @@ npm install
 
 打开 http://127.0.0.1:5173 ，账号 `admin / admin123`。教师账号 `teacher / teacher123`，
 学生账号 `student / student123`。后端 API 文档在 http://127.0.0.1:8000/api/docs 。
+
+## 跑测试
+
+回归测试覆盖路由可达性、必填校验、权限边界、软删除不变量、检索融合与向量维度校验，
+全部用假 provider，不调用任何外部模型接口，也不需要额外依赖：
+
+```bash
+cd backend
+.venv/bin/python manage.py test
+```
+
+新建测试库时迁移会自动创建 vector 扩展，不需要预先手工配置。
 
 ## 本地向量服务
 
@@ -122,11 +133,21 @@ RELOAD=1 ./start.sh   # 后端代码热重载，默认关闭
 ## Redis 与 Celery
 
 当前不需要 Redis。解析、向量化等耗时任务由 `apps/common/tasks.py` 的 `run_task`
-调度，默认以守护线程执行，请求立即返回，前端轮询 parse_status 查看进度。
+调度，默认投进有上限的本地工作线程池，请求立即返回，前端轮询 parse_status 查看进度。
+
+线程池上限由 `TASKS_MAX_WORKERS` 控制，默认 4。设上限是必要的：每个任务会占一个
+数据库连接并持续调用模型接口，早期版本一个任务起一个线程，批量重新解析 50 条就是
+50 个线程同时冲进去，连接数与接口限流会一起被撞爆。
 
 并发规模扩大后切换 Celery 的开关已预留：settings 中有 `TASKS_USE_CELERY`，
-run_task 的 Celery 分支已实现，broker 连接失败会自动退回线程。届时需要补齐
+run_task 的 Celery 分支已实现，broker 连接失败会自动退回线程池。届时需要补齐
 celery app 实例、任务函数加 @shared_task、`.env` 中 `TASKS_USE_CELERY=true`，并启动 worker。
 
 并发上来之后优先排查的是：runserver 换 gunicorn 多 worker、模型上游的吞吐与限流、
 Postgres 连接数。这三项都在任务队列之前。
+
+## 限流
+
+聊天接口默认每用户每分钟 20 次，由 `CHAT_RATE_LIMIT_PER_MINUTE` 控制，0 表示不限制。
+计数放在 Django 缓存里，默认是进程内的 locmem，单进程够用；多 worker 部署时把
+`CACHES` 换成 Redis，计数才是全局共享的。

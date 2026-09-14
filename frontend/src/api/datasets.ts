@@ -64,6 +64,8 @@ export const kbApi = {
   removeDoc: (docId: number) => http.delete(`/knowledge/docs/${docId}`),
 
   chunks: (docId: number, params?: Record<string, unknown>) => getList<Chunk>(`/knowledge/docs/${docId}/chunks`, params),
+  /** 单个切片详情：来源面板点开后看全文用 */
+  chunk: (id: number) => http.get<Chunk>(`/knowledge/chunks/${id}`).then((r) => r.data),
   /** 手工添加切片，挂在指定知识条目下 */
   createChunk: (payload: { doc_id: number; content: string; chapter_path?: string }) =>
     http.post('/knowledge/chunks', payload),
