@@ -7,18 +7,17 @@
     <script>
       /* 主题必须在样式生效前落定，否则非亮色用户会看到一帧白屏。
          脚本内联在这里，跑在 CSS 与 Vue 之前；逻辑与 utils/theme.ts 保持一致。
-         light / dark / tech 三套主题，类名挂在 <html> 上。 */
+         light / tech 两套主题，类名挂在 <html> 上。 */
       (function () {
         try {
           var saved = localStorage.getItem('iot-edu-theme')
-          var mode = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          // 历史兼容：旧版纯黑 dark 已废弃，统一迁移到科技风
+          if (saved === 'dark') saved = 'tech'
+          var mode = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'tech' : 'light')
           // 科技风同时挂 dark：Element 的组件级暗色变量只认 .dark，
           // 少了它，弹窗/下拉/选择器这些会保持白底。逻辑与 utils/theme.ts 一致。
           if (mode === 'tech') {
             document.documentElement.classList.add('dark', 'tech')
-            document.documentElement.style.colorScheme = 'dark'
-          } else if (mode === 'dark') {
-            document.documentElement.classList.add('dark')
             document.documentElement.style.colorScheme = 'dark'
           }
         } catch (e) {

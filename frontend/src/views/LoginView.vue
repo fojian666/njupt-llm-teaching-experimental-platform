@@ -6,7 +6,7 @@
     <div class="glow glow-b" aria-hidden="true"></div>
     <div class="grid" aria-hidden="true"></div>
 
-    <!-- 主题切换：与内部同一套（light/dark/tech），点击即在三套间循环，不弹下拉 -->
+    <!-- 主题切换：与内部同一套（light/tech），点击即在两套间循环，不弹下拉 -->
     <button
       class="theme-toggle"
       type="button"
@@ -78,16 +78,16 @@
 
 <script setup lang="ts">
 /**
- * 登录页：科技风门面，跟随全局主题（light/dark/tech）。
+ * 登录页：科技风门面，跟随全局主题（light/tech）。
  *
  * 背景是可交互的粒子互联网络 —— 物联网的视觉隐喻，鼠标移入时近邻节点会被拉亮。
- * 右上角有主题切换按钮，点击即在三套主题间循环（与内部 MainLayout 同一套 utils）。
+ * 右上角有主题切换按钮，点击即在两套主题间循环（与内部 MainLayout 同一套 utils）。
  * 动效全部服从 prefers-reduced-motion；页面不可见时停掉动画循环，别空转烧电。
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Sunny, Moon, MagicStick } from '@element-plus/icons-vue'
+import { Sunny, MagicStick } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { theme, cycleTheme, THEMES } from '@/utils/theme'
 
@@ -110,12 +110,12 @@ const demoAccounts = [
 ]
 
 // ---------------- 主题切换（与内部一致） ----------------
-const THEME_ICONS: Record<string, any> = { light: Sunny, dark: Moon, tech: MagicStick }
-const currentThemeIcon = computed(() => THEME_ICONS[theme.value] ?? Moon)
+const THEME_ICONS: Record<string, any> = { light: Sunny, tech: MagicStick }
+const currentThemeIcon = computed(() => THEME_ICONS[theme.value] ?? Sunny)
 const currentThemeLabel = computed(
   () => THEMES.find((t) => t.mode === theme.value)?.label ?? '',
 )
-/** 点击即在 light → dark → tech 间循环，并把点击坐标交给 View Transition
+/** 点击即在 light → tech 间循环，并把点击坐标交给 View Transition
  *  做从按钮处展开的圆形扩散。内部 MainLayout 用同一套 utils，行为完全一致。 */
 function onToggleTheme(e: MouseEvent) {
   cycleTheme({ x: e.clientX, y: e.clientY })
@@ -343,7 +343,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   height: 100%;
   overflow: hidden;
-  /* 登录页跟随全局主题：tech/dark 走深蓝科技底，light 走浅色；切换用同一套 utils */
+  /* 登录页跟随全局主题：tech 走深蓝科技底，light 走浅色；切换用同一套 utils */
   background:
     radial-gradient(1200px 600px at 15% 0%, #0d2340 0%, transparent 60%),
     radial-gradient(900px 500px at 85% 100%, #102a4d 0%, transparent 62%),

@@ -106,7 +106,7 @@ const currentThemeIcon = computed(() => currentTheme.value.icon)
 
 function onThemeCommand(mode: string) {
   const el = document.querySelector('.theme-btn')?.getBoundingClientRect()
-  setTheme(mode as 'light' | 'dark' | 'tech', true,
+  setTheme(mode as 'light' | 'tech', true,
     el ? { x: el.x + el.width / 2, y: el.y + el.height / 2 } : undefined)
 }
 

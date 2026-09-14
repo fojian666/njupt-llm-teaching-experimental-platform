@@ -1,8 +1,7 @@
 /**
- * 主题切换：三套主题，全部由 CSS 变量承担，组件侧不需要知道当前是哪套。
+ * 主题切换：两套主题，全部由 CSS 变量承担，组件侧不需要知道当前是哪套。
  *
  *   light  亮色（默认）
- *   dark   暗色，纯黑底
  *   tech   科技风，深海军蓝 + 蓝青双色 + 玻璃质感（与登录页同一套语言）
  *
  * 首屏防白闪：index.html 里有一段内联脚本，在样式加载前就把类名写上去；
@@ -10,21 +9,22 @@
  */
 import { ref } from 'vue'
 
-export type ThemeMode = 'light' | 'dark' | 'tech'
+export type ThemeMode = 'light' | 'tech'
 
 const STORAGE_KEY = 'iot-edu-theme'
 
-/** 三套主题的展示信息。切换入口按这张表渲染，新增主题只改这里。 */
+/** 两套主题的展示信息。切换入口按这张表渲染，新增主题只改这里。 */
 export const THEMES: { mode: ThemeMode; label: string; icon: string; hint: string }[] = [
   { mode: 'light', label: '亮色', icon: 'Sunny', hint: '白底浅灰，适合白天' },
-  { mode: 'dark', label: '暗色', icon: 'Moon', hint: '纯黑底，夜里不刺眼' },
   { mode: 'tech', label: '科技风', icon: 'MagicStick', hint: '深蓝玻璃质感，投屏演示更抓眼' },
 ]
 
 /** 当前主题。响应式，供界面显示图标用。 */
 export const theme = ref<ThemeMode>('light')
 
-const ALL_CLASSES: ThemeMode[] = ['dark', 'tech']
+// 所有主题可能挂上的类，切换前先全部摘掉。
+// tech 会同时挂 dark + tech，所以 dark 必须在这里，否则从 tech 切回亮色会残留 dark。
+const ALL_CLASSES: string[] = ['dark', 'tech']
 
 function systemPrefersDark(): boolean {
   return typeof window !== 'undefined'
@@ -36,11 +36,13 @@ function systemPrefersDark(): boolean {
 export function resolveInitialTheme(): ThemeMode {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'light' || saved === 'dark' || saved === 'tech') return saved
+    // 历史兼容：旧版纯黑 dark 已废弃，统一迁移到科技风
+    if (saved === 'dark') return 'tech'
+    if (saved === 'light' || saved === 'tech') return saved
   } catch {
     /* 隐私模式下 localStorage 可能不可用，忽略即可 */
   }
-  return systemPrefersDark() ? 'dark' : 'light'
+  return systemPrefersDark() ? 'tech' : 'light'
 }
 
 /**
@@ -52,9 +54,8 @@ export function resolveInitialTheme(): ThemeMode {
  * 所以：dark 负责把 Element 组件整体切暗，tech 在其上做品牌与玻璃质感的着色。
  * CSS 顺序上我们的样式在 Element 之后加载，同优先级下 tech 的令牌会胜出。
  */
-function modeClasses(mode: ThemeMode): ThemeMode[] {
+function modeClasses(mode: ThemeMode): string[] {
   if (mode === 'tech') return ['dark', 'tech']
-  if (mode === 'dark') return ['dark']
   return []
 }
 
