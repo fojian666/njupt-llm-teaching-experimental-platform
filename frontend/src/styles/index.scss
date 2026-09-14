@@ -607,6 +607,49 @@ code,
 }
 
 /* ============================================================
+   主题切换过渡
+   ------------------------------------------------------------
+   两条路径：
+   1. 支持 View Transitions 的浏览器 → 以点击位置为圆心做圆形扩散；
+   2. 不支持 → 给 <html> 临时挂 .theme-transition，让颜色变化带过渡，
+      动画结束后由 JS 摘掉（常驻会把 hover 也拖成慢动作）。
+   ============================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 旧画面留在下层不动，新画面从圆心扩出来 */
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+  animation: theme-reveal 0.5s var(--ease);
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--theme-x, 50%) var(--theme-y, 50%));
+  }
+  to {
+    clip-path: circle(150% at var(--theme-x, 50%) var(--theme-y, 50%));
+  }
+}
+
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.34s var(--ease), color 0.34s var(--ease),
+    border-color 0.34s var(--ease), fill 0.34s var(--ease) !important;
+  /* 过渡期间别让大面积阴影跟着抖 */
+  transition-property: background-color, color, border-color, fill !important;
+}
+
+/* ============================================================
    可访问性：用户系统里关掉了动效就别硬演
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

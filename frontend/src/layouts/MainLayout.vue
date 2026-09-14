@@ -28,7 +28,16 @@
         </div>
         <div class="head-right">
           <el-tooltip :content="theme === 'dark' ? '切换到亮色' : '切换到暗色'" placement="bottom">
-            <el-icon class="theme-btn" :size="17" aria-label="切换主题" @click="toggleTheme">
+            <el-icon
+              class="theme-btn"
+              :size="17"
+              role="button"
+              tabindex="0"
+              aria-label="切换主题"
+              @click="onToggleTheme"
+              @keydown.enter.prevent="onToggleTheme"
+              @keydown.space.prevent="onToggleTheme"
+            >
               <Moon v-if="theme === 'light'" />
               <Sunny v-else />
             </el-icon>
@@ -81,6 +90,17 @@ const router = useRouter()
 const userStore = useUserStore()
 const collapsed = ref(false)
 const menuOpen = ref(false)
+
+/** 切换主题：把点击/按键位置坐标传给动画，圆形扩散才能从图标处展开 */
+function onToggleTheme(e?: MouseEvent | KeyboardEvent) {
+  if (e && 'clientX' in e && (e.clientX || e.clientY)) {
+    toggleTheme({ x: e.clientX, y: e.clientY })
+    return
+  }
+  const el = e?.currentTarget as HTMLElement | undefined
+  const rect = el?.getBoundingClientRect()
+  toggleTheme(rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : undefined)
+}
 
 /** el-main 是内部滚动的（overflow:auto），window 不滚，所以路由切换要手动复位 */
 const mainEl = ref<ComponentPublicInstance | null>(null)
