@@ -87,6 +87,20 @@ class ResourceDetailOut(ResourceOut):
     in_knowledge_bases: List[str] = []
 
 
+# 批量接口一次能处理的最大条数。不设上限时一个请求可以带几千个 id 进来，
+# 逐个查询加逐个排任务，属于自找的资源耗尽入口。数量超限直接报错，不静默截断。
+MAX_BATCH_IDS = 200
+
+
+def _check_batch_size(ids: List[int]) -> None:
+    if len(ids) > MAX_BATCH_IDS:
+        raise HttpError(400, f"一次最多处理 {MAX_BATCH_IDS} 条，当前 {len(ids)} 条，请分批操作")
+
+
+class BatchIdsIn(Schema):
+    ids: List[int]
+
+
 class ResourceUpdateIn(Schema):
     name: Optional[str] = None
     category_id: Optional[int] = None
@@ -352,8 +366,15 @@ def list_resources(
 
 
 @router.post("/resources/batch-delete")
-def batch_delete_resources(request, ids: List[int]):
+def batch_delete_resources(request, payload: BatchIdsIn):
+    """批量软删除。
+
+    注意参数必须是 Schema 而不是裸的 `ids: List[int]`：后者在 ninja 里默认从
+    query string 取值，而前端是把 ids 放进 JSON body 的，那样会一直 422。
+    """
     require_manager(request)
+    ids = payload.ids
+    _check_batch_size(ids)
     deleted, blocked = 0, []
     for r in DataResource.objects.filter(id__in=ids, is_deleted=False):
         if r.knowledge_docs.filter(is_active=True).exists():
@@ -375,14 +396,11 @@ def batch_delete_resources(request, ids: List[int]):
 # 注意：这些字面路径必须注册在 /resources/{resource_id} 动态路由之前，
 # 否则 "batch-xxx" 会被当成 resource_id 匹配到详情/删除路由上，直接 405。
 # --------------------------------------------------------------------------
-class BatchIdsIn(Schema):
-    ids: List[int]
-
-
 @router.post("/resources/batch-parse")
 def batch_parse(request, payload: BatchIdsIn):
     """批量重新解析：逐条排入解析队列，成功与否看各自的解析状态。"""
     require_manager(request)
+    _check_batch_size(payload.ids)
     ok, skipped = 0, 0
     for rid in payload.ids:
         r = DataResource.objects.filter(id=rid, is_deleted=False).first()
@@ -404,6 +422,7 @@ class BatchTagsIn(Schema):
 def batch_tags(request, payload: BatchTagsIn):
     """批量添加标签：只做增量，不清除各条数据已有的标签。"""
     require_manager(request)
+    _check_batch_size(payload.ids)
     names = [t.strip() for t in payload.tags if t.strip()]
     if not names:
         raise HttpError(400, "请至少填写一个标签")
@@ -423,17 +442,23 @@ def batch_tags(request, payload: BatchTagsIn):
 class BatchMoveIn(Schema):
     ids: List[int]
     category_id: int
+    # 移出分类必须显式声明：category_id 传 0 而又没带这个标记时直接报错，
+    # 免得"下拉框没选"变成静默清空一批数据的分类
+    clear: bool = False
 
 
 @router.post("/resources/batch-move")
 def batch_move(request, payload: BatchMoveIn):
-    """批量移动到目标分类；category_id 传 0 表示移出分类。"""
+    """批量移动到目标分类；要移出分类须显式传 clear=true。"""
     require_manager(request)
+    _check_batch_size(payload.ids)
     category = None
     if payload.category_id:
         category = DataCategory.objects.filter(id=payload.category_id).first()
         if category is None:
             raise HttpError(404, "目标分类不存在")
+    elif not payload.clear:
+        raise HttpError(400, "请选择目标分类；如需移出分类请显式勾选移出选项")
     n = DataResource.objects.filter(id__in=payload.ids, is_deleted=False).update(category=category)
     log_action(request, "batch_move_resource", "DataResource", 0,
                detail=f"{n} 条移至 {category.full_path if category else '未分类'}")

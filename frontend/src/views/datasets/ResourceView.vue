@@ -190,13 +190,18 @@
           <el-tree-select
             v-model="moveCategoryId" :data="tree" clearable check-strictly
             :props="{ label: 'name', children: 'children' }" value-key="id"
-            placeholder="不选则移出分类" style="width: 100%"
+            placeholder="请选择目标分类" style="width: 100%"
           />
+        </el-form-item>
+        <el-form-item label="移出分类">
+          <el-checkbox v-model="moveClear">把选中的数据移出分类（置为未分类）</el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="moveDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveBatchMove">移动 {{ selected.length }} 条</el-button>
+        <el-button type="primary" :disabled="!moveCategoryId && !moveClear" @click="saveBatchMove">
+          移动 {{ selected.length }} 条
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -318,6 +323,7 @@ const tagDialog = ref(false)
 const moveDialog = ref(false)
 const batchTagInput = ref<string[]>([])
 const moveCategoryId = ref<number | null>(null)
+const moveClear = ref(false)
 const batchParsing = ref(false)
 
 async function batchReparse() {
@@ -347,11 +353,16 @@ async function saveBatchTags() {
 
 function openMove() {
   moveCategoryId.value = null
+  moveClear.value = false
   moveDialog.value = true
 }
 
 async function saveBatchMove() {
-  const r = await resourceApi.batchMove(selected.value.map((x) => x.id), moveCategoryId.value ?? 0)
+  const r = await resourceApi.batchMove(
+    selected.value.map((x) => x.id),
+    moveCategoryId.value ?? 0,
+    moveClear.value,
+  )
   ElMessage.success(r.data?.message ?? '已移动')
   moveDialog.value = false
   await load()

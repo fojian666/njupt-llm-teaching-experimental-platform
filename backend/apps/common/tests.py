@@ -141,6 +141,124 @@ class RateLimitTest(TestCase):
             check_rate_limit(req, "unlimited-test", 0)  # 不抛异常即为通过
 
 
+class AbuseGuardTest(TestCase):
+    """对抗性检查守住的几条线：输入长度、批量条数、跨用户归属。"""
+
+    def setUp(self):
+        from apps.agents.models import Agent, Conversation
+
+        self.admin = User.objects.create_user(username="t_abuse", password="pw123456", role="admin")
+        self.other = User.objects.create_user(username="t_other", password="pw123456", role="student")
+        self.agent = Agent.objects.create(name="越权测试智能体", code="abuse-agent")
+        self.conv = Conversation.objects.create(agent=self.agent, user=self.other, title="别人的会话")
+        self.msg = Message.objects.create(conversation=self.conv, role=Message.Role.ASSISTANT, content="别人的回答")
+        self.client.force_login(self.admin)
+
+    def test_question_length_capped(self):
+        """超长问题必须在 schema 层被拒，不能原样送去调模型。"""
+        resp = self.client.post(
+            f"/api/agents/{self.agent.id}/chat",
+            {"question": "啊" * 5000},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_empty_question_rejected(self):
+        resp = self.client.post(
+            f"/api/agents/{self.agent.id}/chat", {"question": "   "}, content_type="application/json"
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_batch_size_capped(self):
+        from apps.datasets.api import MAX_BATCH_IDS
+
+        too_many = list(range(1, MAX_BATCH_IDS + 2))
+        for path, payload in [
+            ("/api/datasets/resources/batch-parse", {"ids": too_many}),
+            ("/api/datasets/resources/batch-tags", {"ids": too_many, "tags": ["x"]}),
+            ("/api/datasets/resources/batch-move", {"ids": too_many, "category_id": 0}),
+            ("/api/datasets/resources/batch-delete", {"ids": too_many}),
+        ]:
+            with self.subTest(path=path):
+                resp = self.client.post(path, payload, content_type="application/json")
+                self.assertEqual(resp.status_code, 400, f"{path} 应拒绝超量 ids")
+
+    def test_batch_size_at_limit_passes(self):
+        from apps.datasets.api import MAX_BATCH_IDS
+
+        ids = list(range(1, MAX_BATCH_IDS + 1))
+        resp = self.client.post(
+            "/api/datasets/resources/batch-parse", {"ids": ids}, content_type="application/json"
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_cannot_rate_someone_elses_message(self):
+        """评价别人的回答要拒绝，否则满意度统计可被任何人篡改。"""
+        resp = self.client.post(
+            f"/api/agents/messages/{self.msg.id}/feedback",
+            {"rating": "like"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_can_rate_own_message(self):
+        from apps.agents.models import Conversation
+
+        own = Conversation.objects.create(agent=self.agent, user=self.admin, title="自己的会话")
+        mine = Message.objects.create(conversation=own, role=Message.Role.ASSISTANT, content="自己的回答")
+        resp = self.client.post(
+            f"/api/agents/messages/{mine.id}/feedback",
+            {"rating": "like"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_batch_move_requires_explicit_clear(self):
+        """目标分类留空不能静默清空分类：必须显式 clear=true。
+
+        实测教训：带 category_id=0 的批量移动会把目标数据的分类全部清空，
+        前端下拉框没选就点确认，等于一次静默的数据损坏。
+        """
+        r = DataResource.objects.create(name="有分类的数据", category=DataCategory.objects.create(name="临时分类"))
+        resp = self.client.post(
+            "/api/datasets/resources/batch-move",
+            {"ids": [r.id], "category_id": 0},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        r.refresh_from_db()
+        self.assertIsNotNone(r.category)  # 分类还在
+
+        ok = self.client.post(
+            "/api/datasets/resources/batch-move",
+            {"ids": [r.id], "category_id": 0, "clear": True},
+            content_type="application/json",
+        )
+        self.assertEqual(ok.status_code, 200)
+        r.refresh_from_db()
+        self.assertIsNone(r.category)  # 显式确认后才真的移出
+
+    def test_unauthenticated_gets_401(self):
+        self.client.logout()
+        for method, path in [
+            ("get", "/api/datasets/resources"),
+            ("post", "/api/datasets/resources/batch-delete"),
+            ("get", "/api/agents/6/conversations"),
+            ("delete", "/api/knowledge/chunks/1"),
+        ]:
+            with self.subTest(path=path):
+                resp = getattr(self.client, method)(path, {}, content_type="application/json")
+                self.assertEqual(resp.status_code, 401, f"{method} {path} 未登录应为 401")
+
+    def test_like_wildcards_are_escaped(self):
+        """搜索里的 % 与 _ 要当普通字符，否则一个 % 就能把全库拉出来。"""
+        DataResource.objects.create(name="普通数据")
+        for kw in ["%", "_"]:
+            with self.subTest(kw=kw):
+                resp = self.client.get("/api/datasets/resources", {"keyword": kw})
+                self.assertEqual(resp.json()["total"], 0)
+
+
 class EmbeddingDimGuardTest(TestCase):
     """向量模型维度与数据库列不一致时要在保存配置那一刻就报错。"""
 

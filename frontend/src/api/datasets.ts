@@ -25,9 +25,9 @@ export const resourceApi = {
   batchParse: (ids: number[]) => http.post('/datasets/resources/batch-parse', { ids }),
   /** 批量添加标签：增量，不清除已有标签 */
   batchTags: (ids: number[], tags: string[]) => http.post('/datasets/resources/batch-tags', { ids, tags }),
-  /** 批量移动到目标分类；categoryId 传 0 表示移出分类 */
-  batchMove: (ids: number[], categoryId: number) =>
-    http.post('/datasets/resources/batch-move', { ids, category_id: categoryId }),
+  /** 批量移动到目标分类；移出分类要显式传 clear=true */
+  batchMove: (ids: number[], categoryId: number, clear = false) =>
+    http.post('/datasets/resources/batch-move', { ids, category_id: categoryId, clear }),
   /** 源文件下载地址（走 <a href> 直接触发浏览器下载） */
   downloadUrl: (id: number) => `/api/datasets/resources/${id}/download`,
   stats: () => http.get('/datasets/stats').then((r) => r.data),

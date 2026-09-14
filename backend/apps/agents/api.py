@@ -72,7 +72,9 @@ class AgentOut(Schema):
 
 
 class ChatIn(Schema):
-    question: str
+    # 长度上限不是形式主义：问题会原样进提示词并送去调用模型，
+    # 放进 20 万字符（实测可行）等于把成本和上游报错风险交给调用方。
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
     conversation_id: Optional[int] = None
     model_config_id: Optional[int] = None
     knowledge_base_ids: List[int] = []
@@ -378,14 +380,25 @@ def list_messages(request, conversation_id: int):
 
 @router.post("/messages/{message_id}/feedback")
 def message_feedback(request, message_id: int, payload: FeedbackIn):
-    """赞 / 踩。同一个用户对同一条消息重复评价就覆盖。"""
+    """赞 / 踩。只允许评价自己会话里的回答，重复评价覆盖。
+
+    归属校验不能省：问答记录里的满意度是教学评估数据，
+    放开的话任何登录用户都能给别人的回答刷赞或刷踩。
+    """
     from apps.audit.models import MessageFeedback
 
     user = current_user(request)
     if payload.rating not in dict(MessageFeedback.Rating.choices):
         raise HttpError(400, f"无效的评价：{payload.rating}")
-    m = Message.objects.filter(id=message_id).first()
+    m = (
+        Message.objects.filter(id=message_id)
+        .select_related("conversation")
+        .first()
+    )
     if m is None:
+        raise HttpError(404, "消息不存在")
+    if m.conversation.user_id != user.id:
+        # 返回 404 而不是 403：不暴露"这条消息存在但不属于你"
         raise HttpError(404, "消息不存在")
 
     MessageFeedback.objects.update_or_create(
