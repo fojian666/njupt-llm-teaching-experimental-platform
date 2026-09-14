@@ -1015,5 +1015,43 @@ html:not(.dark):not(.tech) .login-page {
       color: #0a84ff;
     }
   }
+
+  /* 亮色下的机器人：整体加深一号并加重描边，否则浅蓝身体融进浅底没有变化感 */
+  .bot {
+    .bot-head,
+    .bot-body,
+    .bot-ear,
+    .bot-hand {
+      background: linear-gradient(160deg, #dfeaff 0%, #b9cdf2 100%);
+      border-color: rgba(60, 95, 165, 0.45);
+      box-shadow:
+        inset 0 2px 0 rgba(255, 255, 255, 0.7),
+        0 10px 26px rgba(40, 80, 150, 0.22);
+    }
+
+    .bot-hand {
+      box-shadow: 0 6px 14px rgba(40, 80, 150, 0.25);
+    }
+
+    .bot-face {
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: inset 0 1px 4px rgba(50, 90, 160, 0.2);
+    }
+
+    .bot-mouth {
+      border-bottom-color: #33507f;
+    }
+
+    .antenna {
+      &::before {
+        background: rgba(80, 115, 175, 0.75);
+      }
+
+      .antenna-light {
+        background: #14b8a6;
+        box-shadow: 0 0 8px rgba(20, 184, 166, 0.55);
+      }
+    }
+  }
 }
 </style>
