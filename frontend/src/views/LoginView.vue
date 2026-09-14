@@ -18,16 +18,26 @@
     </button>
 
     <div class="stage" :style="parallax">
-      <!-- 南邮校徽：真实校徽 + 嵌在盾徽里的眼睛。瞳孔跟随光标，把物联网"感知"拟人化 -->
-      <div class="emblem">
-        <span class="emblem-plate" aria-hidden="true"></span>
-        <span class="emblem-ring" aria-hidden="true"></span>
-        <img class="emblem-img" :src="emblem" alt="南京邮电大学校徽" draggable="false" />
-        <!-- 眼睛嵌在盾徽中央；ref 供 JS 写入瞳孔偏移 -->
-        <div ref="watcherRef" class="emblem-eyes" aria-hidden="true">
-          <span class="eye"><span class="pupil"></span></span>
-          <span class="eye"><span class="pupil"></span></span>
+      <!-- 物联网小机器人：眼睛跟随光标，输入密码时抬手捂眼；胸口完整别南邮校徽 -->
+      <div class="bot" :class="{ 'is-shy': pwdFocused }" aria-hidden="true">
+        <span class="antenna" aria-hidden="true"><i class="antenna-light"></i></span>
+        <div class="bot-head">
+          <span class="bot-ear" aria-hidden="true"></span>
+          <span class="bot-ear right" aria-hidden="true"></span>
+          <!-- ref 供 JS 写入瞳孔偏移 -->
+          <div ref="watcherRef" class="bot-face">
+            <div class="bot-eyes">
+              <span class="eye"><span class="pupil"></span></span>
+              <span class="eye"><span class="pupil"></span></span>
+            </div>
+            <span class="bot-mouth" aria-hidden="true"></span>
+          </div>
         </div>
+        <div class="bot-body">
+          <img class="bot-badge" :src="emblem" alt="" draggable="false" />
+        </div>
+        <span class="bot-hand" aria-hidden="true"></span>
+        <span class="bot-hand right" aria-hidden="true"></span>
       </div>
 
       <h1 class="title">{{ title }}</h1>
@@ -173,7 +183,7 @@ function updateEyes() {
   const watcher = watcherRef.value
   if (!watcher) return
   const eyes = watcher.querySelectorAll<HTMLElement>('.eye')
-  const MAX = 7
+  const MAX = 5
   eyes.forEach((eye) => {
     const r = eye.getBoundingClientRect()
     const cx = r.left + r.width / 2
@@ -421,83 +431,180 @@ onBeforeUnmount(() => {
   transition: transform 0.3s var(--ease);
 }
 
-/* ---------------- 校徽（眼睛嵌在盾徽里） ---------------- */
-.emblem {
+/* ---------------- 物联网小机器人（眼睛跟随光标，输密码捂眼） ---------------- */
+.bot {
   position: relative;
-  width: 152px;
-  height: 152px;
-  margin-bottom: 18px;
-  display: grid;
-  place-items: center;
-  animation: card-in 0.6s var(--ease) both;
+  width: 150px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* card-in 负责入场；breathe 延迟到入场结束后接管（同属性时后声明的动画胜出） */
+  animation:
+    card-in 0.6s var(--ease) both,
+    breathe 3.4s ease-in-out 0.7s infinite;
 
-  /* 浅色托板：校徽本身是蓝白的，直接放深色科技底上会看不清，用托板保证可读 */
-  .emblem-plate {
+  /* 天线 + 信号灯 */
+  .antenna {
     position: absolute;
-    inset: 0;
-    border-radius: 28px;
-    background: linear-gradient(158deg, #ffffff 0%, #edf3ff 100%);
-    box-shadow:
-      0 18px 44px rgba(6, 22, 48, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  }
-
-  /* 呼吸光环：沿用原徽标的动效语言 */
-  .emblem-ring {
-    position: absolute;
-    inset: -7px;
-    border-radius: 32px;
-    border: 1px solid rgba(120, 190, 255, 0.5);
-    animation: pulse 2.8s var(--ease) infinite;
-  }
-
-  .emblem-img {
-    position: relative;
-    z-index: 1;
-    display: block;
-    width: 116px;
-    height: auto;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-
-  /* 眼睛嵌在盾徽中央，略偏上：下方的邮/电徽记露出来当"身体" */
-  .emblem-eyes {
-    position: absolute;
-    z-index: 2;
-    top: 46%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: -19px;
     display: flex;
-    gap: 11px;
+    flex-direction: column;
+    align-items: center;
+
+    &::before {
+      content: '';
+      width: 3px;
+      height: 11px;
+      border-radius: 2px;
+      background: rgba(120, 160, 220, 0.7);
+    }
+
+    .antenna-light {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #59e0d2;
+      box-shadow: 0 0 10px rgba(89, 224, 210, 0.8);
+      animation: signal 3.2s ease-in-out infinite;
+    }
+  }
+
+  .bot-head {
+    position: relative;
+    width: 96px;
+    height: 78px;
+    border-radius: 30px;
+    background: linear-gradient(160deg, #f4f8ff 0%, #d9e6fb 100%);
+    border: 1px solid rgba(120, 150, 210, 0.45);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.8),
+      0 10px 26px rgba(8, 26, 54, 0.45);
+
+    .bot-ear {
+      position: absolute;
+      top: 26px;
+      left: -7px;
+      width: 12px;
+      height: 22px;
+      border-radius: 6px;
+      background: linear-gradient(160deg, #e4edfc, #c4d5f2);
+      border: 1px solid rgba(120, 150, 210, 0.45);
+
+      &.right {
+        left: auto;
+        right: -7px;
+      }
+    }
+
+    .bot-face {
+      position: absolute;
+      inset: 10px 8px 8px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.65);
+      box-shadow: inset 0 1px 4px rgba(40, 70, 120, 0.18);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  .bot-eyes {
+    display: flex;
+    gap: 14px;
+  }
+
+  .bot-mouth {
+    width: 16px;
+    height: 7px;
+    margin-top: 4px;
+    border-bottom: 2.5px solid #5a6f9e;
+    border-radius: 0 0 12px 12px;
+  }
+
+  .bot-body {
+    width: 78px;
+    height: 54px;
+    margin-top: 5px;
+    border-radius: 22px 22px 26px 26px;
+    background: linear-gradient(160deg, #eef4ff 0%, #cddcf6 100%);
+    border: 1px solid rgba(120, 150, 210, 0.45);
+    box-shadow: 0 12px 28px rgba(8, 26, 54, 0.4);
+    display: grid;
+    place-items: center;
+
+    /* 校徽完整别在胸口，不再做任何涂改 */
+    .bot-badge {
+      width: 30px;
+      height: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+  }
+
+  /* 双手：平时垂在身体两侧，输密码时移到眼睛上 */
+  .bot-hand {
+    position: absolute;
+    top: 92px;
+    left: 30px;
+    width: 22px;
+    height: 28px;
+    border-radius: 11px;
+    background: linear-gradient(160deg, #f4f8ff 0%, #d3e1f8 100%);
+    border: 1px solid rgba(120, 150, 210, 0.5);
+    box-shadow: 0 6px 14px rgba(8, 26, 54, 0.35);
+    transform: rotate(-14deg);
+    transition:
+      top 0.35s var(--ease),
+      left 0.35s var(--ease),
+      right 0.35s var(--ease),
+      transform 0.35s var(--ease);
+    z-index: 5;
+
+    &.right {
+      left: auto;
+      right: 30px;
+      transform: rotate(14deg);
+    }
+  }
+
+  /* 害羞态：双手捂住眼睛，替用户挡住密码 */
+  &.is-shy .bot-hand {
+    top: 15px;
+    left: 46px;
+    transform: rotate(8deg);
+
+    &.right {
+      left: auto;
+      right: 46px;
+      transform: rotate(-8deg);
+    }
   }
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(0.86);
-    opacity: 0.9;
-  }
-  70% {
-    transform: scale(1.18);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.18);
-    opacity: 0;
-  }
+/* 待机呼吸：整只机器人轻轻上下浮动 */
+@keyframes breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
-/* ---------------- 眼睛（嵌在盾徽里，跟随光标 + 定时眨眼） ---------------- */
+/* 天线信号灯呼吸闪烁 */
+@keyframes signal {
+  0%, 100% { opacity: 0.55; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* ---------------- 眼睛（跟随光标 + 定时眨眼） ---------------- */
 .eye {
   position: relative;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   overflow: hidden;
   background: radial-gradient(circle at 50% 38%, #ffffff 0%, #eaf1ff 70%, #cfe0ff 100%);
   border: 1px solid rgba(140, 180, 240, 0.6);
-  box-shadow: inset 0 -5px 9px rgba(20, 50, 90, 0.22);
+  box-shadow: inset 0 -4px 7px rgba(20, 50, 90, 0.22);
   /* 这两个变量由 JS 写入，决定瞳孔偏移 */
   --dx: 0px;
   --dy: 0px;
@@ -508,10 +615,10 @@ onBeforeUnmount(() => {
   &::after {
     content: '';
     position: absolute;
-    top: 5px;
-    left: 6px;
-    width: 9px;
-    height: 6px;
+    top: 4px;
+    left: 5px;
+    width: 7px;
+    height: 5px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.9);
     filter: blur(0.6px);
@@ -523,13 +630,13 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 13px;
-  height: 13px;
-  margin: -6.5px 0 0 -6.5px;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
   border-radius: 50%;
   /* 深蓝虹膜 + 左上高光：比纯黑瞳更有"神"，比原青色辉光少一分监控感 */
   background: radial-gradient(circle at 36% 32%, #ffffff 0 14%, #24407f 32%, #12224f 100%);
-  box-shadow: 0 0 6px rgba(70, 140, 255, 0.5);
+  box-shadow: 0 0 5px rgba(70, 140, 255, 0.5);
   transform: translate(var(--dx), var(--dy));
   transition: transform 0.12s ease-out;
 }
@@ -541,8 +648,9 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bot,
   .eye,
-  .emblem-ring {
+  .antenna-light {
     animation: none;
   }
 }
