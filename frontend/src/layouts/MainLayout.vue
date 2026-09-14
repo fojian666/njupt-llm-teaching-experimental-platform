@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout">
-    <el-aside :width="collapsed ? '64px' : '220px'" class="aside">
+    <el-aside :width="collapsed ? '64px' : '220px'" class="aside" :class="{ collapsed }">
       <div class="brand">
         <el-icon :size="collapsed ? 24 : 22"><Cpu /></el-icon>
         <transition name="brand-fade">
@@ -106,6 +106,11 @@ async function onCommand(cmd: string) {
 <style scoped lang="scss">
 .layout {
   height: 100%;
+  /* 顶栏高度在这一处定死，品牌区、header、内容区高度计算都引用它。
+     为什么不用 Element 的 --el-header-height：Element 把它声明在 .el-header 元素自身上，
+     外层设的值会被元素自己的声明压掉，实测品牌区 56px 与 header 60px 对不齐。
+     之前品牌区写死 56px、header 用默认 60px，侧栏深色时看不出来，改浅色后底边错位很明显。 */
+  --shell-head-h: 56px;
 }
 
 .aside {
@@ -121,7 +126,7 @@ async function onCommand(cmd: string) {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 56px;
+    height: var(--shell-head-h);
     padding: 0 14px;
     color: var(--ink-1);
     font-weight: 600;
@@ -154,6 +159,13 @@ async function onCommand(cmd: string) {
     transform: translateX(-8px);
   }
 
+  /* 收起态：品牌图标要居中，不能再带展开态的左内距。
+     左内距 14 + 图标半宽 12 = 26，而 64px 侧栏的中心是 32 —— 差 6px 很明显。 */
+  &.collapsed .brand {
+    padding: 0;
+    justify-content: center;
+  }
+
   .menu {
     border-right: none;
 
@@ -161,10 +173,12 @@ async function onCommand(cmd: string) {
       width: 100%;
     }
 
-    /* 菜单文字强制单行：宽度动画期间只被裁切，不发生换行挤压 */
+    /* 菜单项：竖向只留 2px 间隔，横向留白分展开/收起两种处理。
+       收起态绝不能加左右外边距 —— Element 是按 64px 整宽算图标居中的，
+       加了 margin 图标就会被顶偏。 */
     :deep(.el-menu-item) {
       height: 40px;
-      margin: 2px 8px;
+      margin: 2px 0;
       border-radius: var(--radius-sm);
       color: var(--ink-2);
       transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
@@ -182,8 +196,9 @@ async function onCommand(cmd: string) {
       }
     }
 
-    /* 只有展开态才改左内距；收起态交给 Element 自己居中图标，改了会顶偏 */
+    /* 只有展开态才加左右外边距与左内距 */
     &:not(.el-menu--collapse) :deep(.el-menu-item) {
+      margin: 2px 8px;
       padding-left: 14px !important;
     }
 
@@ -197,6 +212,7 @@ async function onCommand(cmd: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: var(--shell-head-h); /* 显式高度：Element 默认 60px 会与侧栏品牌区差 4px */
   background: #fff;
   border-bottom: 1px solid var(--line);
 
@@ -277,7 +293,8 @@ async function onCommand(cmd: string) {
   padding: 16px; /* 灰底留白，白卡片浮起来；0 会让无卡片包裹的页面贴边 */
   background: var(--bg-page);
 
-  /* 把内容区可用高度算好传下去，页面就不用各自写 calc(100vh - 多少) 了 */
-  --content-height: calc(100vh - var(--el-header-height) - 32px);
+  /* 把内容区可用高度算好传下去，页面就不用各自写 calc(100vh - 多少) 了。
+     减的是顶栏高度与 .main 上下各 16px 的内边距。 */
+  --content-height: calc(100vh - var(--shell-head-h) - 32px);
 }
 </style>
