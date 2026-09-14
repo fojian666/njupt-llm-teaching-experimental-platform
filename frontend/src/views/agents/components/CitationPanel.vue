@@ -108,8 +108,8 @@ async function copyChunk() {
 
   &.right {
     width: 316px;
-    background: #fbfbfd;
-    border-left: 1px solid rgba(60, 60, 67, 0.08);
+    background: var(--bg-soft);
+    border-left: 1px solid var(--line-soft);
 
     .cite-head {
       display: flex;
@@ -119,8 +119,8 @@ async function copyChunk() {
 
       .count {
         padding: 1px 8px;
-        border-radius: 999px;
-        background: rgba(120, 120, 128, 0.12);
+        border-radius: var(--radius-pill);
+        background: var(--bg-hover-strong);
         color: var(--ink-2);
         font-size: 12px;
         font-variant-numeric: tabular-nums;
@@ -136,8 +136,8 @@ async function copyChunk() {
 }
 
 .citation-item {
-  border-radius: 12px;
-  border: 1px solid rgba(60, 60, 67, 0.1);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
   background: #fff;
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -146,7 +146,7 @@ async function copyChunk() {
 
   &:hover,
   &:focus-visible {
-    border-color: rgba(0, 122, 255, 0.45);
+    border-color: var(--brand-line);
     box-shadow: 0 2px 10px rgba(0, 122, 255, 0.12);
     outline: none;
 
@@ -209,9 +209,9 @@ async function copyChunk() {
 
     .cited-tag {
       padding: 1px 7px;
-      border-radius: 999px;
-      background: rgba(52, 199, 89, 0.14);
-      color: #1f9d47;
+      border-radius: var(--radius-pill);
+      background: var(--ok-soft);
+      color: var(--ok);
       font-size: 11px;
     }
   }
@@ -234,8 +234,8 @@ async function copyChunk() {
   max-height: 46vh;
   overflow: auto;
   background: #fafbfc;
-  border: 1px solid rgba(60, 60, 67, 0.1);
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;

@@ -595,7 +595,7 @@ onMounted(loadAll)
     gap: 12px;
     padding: 12px 24px;
     background: #fff;
-    border-bottom: 1px solid rgba(60, 60, 67, 0.08); /* iOS separator 的观感：极淡 */
+    border-bottom: 1px solid var(--line-soft); /* iOS separator 的观感：极淡 */
 
     .head-right {
       display: flex;
@@ -619,7 +619,7 @@ onMounted(loadAll)
     .mini-avatar {
       width: 30px;
       height: 30px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       display: grid;
       place-items: center;
       flex-shrink: 0;
@@ -734,7 +734,7 @@ onMounted(loadAll)
       .sug-chip {
         padding: 7px 14px;
         border: 1px solid rgba(60, 60, 67, 0.12);
-        border-radius: 999px;
+        border-radius: var(--radius-pill);
         background: #fff;
         color: var(--ink-2);
         font-size: 13px;
@@ -795,7 +795,7 @@ onMounted(loadAll)
         width: 30px;
         height: 30px;
         flex-shrink: 0;
-        border-radius: 10px;
+        border-radius: var(--radius);
         display: grid;
         place-items: center;
         color: #fff;
@@ -834,7 +834,7 @@ onMounted(loadAll)
         padding: 10px 12px;
         margin-bottom: 10px;
         background: var(--bg-page);
-        border-radius: 10px;
+        border-radius: var(--radius);
         color: var(--ink-3);
         font-size: 12px;
         line-height: 1.65;
@@ -886,7 +886,7 @@ onMounted(loadAll)
 
   .input-area {
     background: #fff;
-    border-top: 1px solid rgba(60, 60, 67, 0.08);
+    border-top: 1px solid var(--line-soft);
     padding: 12px 24px 16px;
 
     /* 悬浮卡片式输入框：聚焦时整块亮起来，而不是只亮一行边框 */
@@ -901,7 +901,7 @@ onMounted(loadAll)
       transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 
       &:focus-within {
-        border-color: rgba(0, 122, 255, 0.45);
+        border-color: var(--brand-line);
         box-shadow: 0 6px 20px rgba(0, 122, 255, 0.14);
       }
 
@@ -932,8 +932,8 @@ onMounted(loadAll)
       max-width: 100%;
       padding: 5px 10px;
       border: none;
-      border-radius: 999px;
-      background: rgba(120, 120, 128, 0.08);
+      border-radius: var(--radius-pill);
+      background: var(--bg-hover);
       color: var(--ink-2);
       font-size: 12px;
       font-family: inherit;
@@ -941,7 +941,7 @@ onMounted(loadAll)
       transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
 
       &:hover {
-        background: rgba(120, 120, 128, 0.14);
+        background: var(--bg-hover-strong);
         color: var(--ink-1);
       }
 
@@ -981,7 +981,7 @@ onMounted(loadAll)
     }
 
     .stop-btn {
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
     }
   }
 }

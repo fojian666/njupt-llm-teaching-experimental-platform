@@ -4,18 +4,43 @@
 
 /* ---------- 设计变量（新样式统一引用，避免颜色散落各处） ---------- */
 :root {
-  --brand: #409eff;
-  --brand-ink: #2b6cb0;
-  --ink-1: #303133;
-  --ink-2: #606266;
-  --ink-3: #909399;
-  --line: #e4e7ed;
-  --line-soft: #ebeef5;
-  --bg-page: #f5f7fa;
-  --bg-soft: #fafbfc;
+  /* 品牌色：iOS 系统蓝。聊天页原本硬编码的就是这一支，
+     这里提升为全局主色，Element 组件跟随覆盖（见下方 --el-* 段） */
+  --brand: #0a84ff;
+  --brand-ink: #0063d1; /* 文本态：比主色深一档，保证浅底可读 */
+  --brand-soft: rgba(10, 132, 255, 0.1); /* 选中/悬浮底色 */
+  --brand-line: rgba(10, 132, 255, 0.45); /* 描边 */
 
-  --radius: 8px;
-  --radius-sm: 6px;
+  /* 文字：三档灰，不用纯黑 */
+  --ink-1: #1c1c1e;
+  --ink-2: #48484a;
+  --ink-3: #8e8e93;
+
+  /* 分隔线：半透明灰而不是实色，压在卡片白底上更轻 */
+  --line: rgba(60, 60, 67, 0.14);
+  --line-soft: rgba(60, 60, 67, 0.08);
+
+  /* 表面：页面 / 卡片 / 侧栏与凹陷区 / 悬浮态 */
+  --bg-page: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-soft: #fbfbfd;
+  --bg-hover: rgba(120, 120, 128, 0.08);
+  --bg-hover-strong: rgba(120, 120, 128, 0.14);
+
+  /* 状态色：四档，语义标签统一从这里取 */
+  --ok: #34c759;
+  --ok-soft: rgba(52, 199, 89, 0.14);
+  --warn: #ff9f0a;
+  --warn-soft: rgba(255, 159, 10, 0.14);
+  --danger: #ff3b30;
+  --danger-soft: rgba(255, 59, 48, 0.12);
+  --info: #8e8e93;
+
+  /* 圆角三档 + 胶囊：原来 8px 一档不够用，聊天页只能硬编码 */
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
 
   /* 缓动统一用 ease-out：入场快、收尾稳，不会有“弹一下”的廉价感 */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -23,8 +48,42 @@
   --dur: 0.24s;
   --dur-slow: 0.4s;
 
-  --shadow-1: 0 2px 8px rgba(31, 45, 61, 0.06);
-  --shadow-2: 0 8px 24px rgba(31, 45, 61, 0.12);
+  --shadow-1: 0 2px 8px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 8px 24px rgba(16, 24, 40, 0.12);
+
+  /* ---------- Element Plus 主题对齐 ----------
+     只覆盖会直接影响观感的几项：主色、圆角、文字与边框层级。
+     Element 的 primary-light-N 是主色的浅色阶，按官方比例手算好写死，
+     比在运行时用 color-mix 更稳（Safari 老版本对 color-mix 支持不齐）。 */
+  --el-color-primary: #0a84ff;
+  --el-color-primary-light-3: #4ba4ff;
+  --el-color-primary-light-5: #84bfff;
+  --el-color-primary-light-7: #bcdcff;
+  --el-color-primary-light-8: #d5e9ff;
+  --el-color-primary-light-9: #eaf4ff;
+  --el-color-primary-dark-2: #0063d1;
+
+  --el-color-success: #34c759;
+  --el-color-warning: #ff9f0a;
+  --el-color-danger: #ff3b30;
+  --el-color-error: #ff3b30;
+  --el-color-info: #8e8e93;
+
+  --el-text-color-primary: #1c1c1e;
+  --el-text-color-regular: #48484a;
+  --el-text-color-secondary: #8e8e93;
+  --el-text-color-placeholder: #b0b0b6;
+
+  --el-border-color: rgba(60, 60, 67, 0.14);
+  --el-border-color-light: rgba(60, 60, 67, 0.1);
+  --el-border-color-lighter: rgba(60, 60, 67, 0.08);
+  --el-border-color-extra-light: rgba(60, 60, 67, 0.05);
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-fill-color-light: #f5f5f7;
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f5f5f7;
 }
 
 * {
@@ -382,6 +441,58 @@ code,
       background: #fbfcfd;
     }
   }
+}
+
+/* ============================================================
+   组件观感统一
+   ------------------------------------------------------------
+   列表页大量使用 Element 默认外观，此处统一卡片、表格、标签、空态的
+   圆角/分隔线/字色，避免每个页面各写一份覆盖。
+   ============================================================ */
+.el-card {
+  border-radius: var(--radius);
+  border-color: var(--line-soft);
+}
+
+.el-table {
+  --el-table-border-color: var(--line-soft);
+  --el-table-header-bg-color: var(--bg-soft);
+  --el-table-row-hover-bg-color: var(--bg-hover);
+
+  th.el-table__cell {
+    font-weight: 600;
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+
+  .el-table__cell {
+    padding: 9px 0;
+  }
+}
+
+.el-pagination {
+  font-variant-numeric: tabular-nums;
+}
+
+.el-tag {
+  border-radius: var(--radius-sm);
+}
+
+.el-empty__description p {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* 表单控件的圆角跟 token 对齐，避免 Element 默认 4px 与卡片 10px 打架 */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: var(--radius-sm);
+}
+
+/* 主按钮在浅色界面里不该有渐变；统一成扁平 */
+.el-button--primary {
+  box-shadow: none;
 }
 
 /* ============================================================

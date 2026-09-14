@@ -7,7 +7,7 @@
           <span v-if="!collapsed" class="brand-name">南京邮电大学物联网学科大模型教学实验平台</span>
         </transition>
       </div>
-      <el-menu :default-active="route.path" router class="menu" :collapse="collapsed" :collapse-transition="false" background-color="#1f2d3d" text-color="#bfcbd9" active-text-color="#409EFF">
+      <el-menu :default-active="route.path" router class="menu" :collapse="collapsed" :collapse-transition="false">
         <el-menu-item v-for="item in menus" :key="item.path" :index="item.path">
           <el-icon><component :is="item.icon" /></el-icon>
           <span>{{ item.title }}</span>
@@ -109,7 +109,10 @@ async function onCommand(cmd: string) {
 }
 
 .aside {
-  background: #1f2d3d;
+  /* 侧栏改浅色：与内容区、聊天页同一套语言。
+     原来的深色 #1f2d3d 是经典后台配色，和右侧浅色工作区一屏之内两种气质。 */
+  background: var(--bg-soft);
+  border-right: 1px solid var(--line-soft);
   transition: width 0.25s var(--ease);
   overflow: hidden;
 
@@ -120,9 +123,13 @@ async function onCommand(cmd: string) {
     gap: 8px;
     height: 56px;
     padding: 0 14px;
-    color: #fff;
+    color: var(--ink-1);
     font-weight: 600;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--line-soft);
+
+    .el-icon {
+      color: var(--brand);
+    }
 
     /* 绝对定位 + 固定宽：收起动画时文字整体被裁切淡出，而不是被挤压重排 */
     .brand-name {
@@ -156,7 +163,28 @@ async function onCommand(cmd: string) {
 
     /* 菜单文字强制单行：宽度动画期间只被裁切，不发生换行挤压 */
     :deep(.el-menu-item) {
+      height: 40px;
+      margin: 2px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--ink-2);
       transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+
+      &:hover {
+        background: var(--bg-hover);
+        color: var(--ink-1);
+      }
+
+      /* 选中态用圆角底 + 品牌色文字，不用左侧色条 */
+      &.is-active {
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+        font-weight: 600;
+      }
+    }
+
+    /* 只有展开态才改左内距；收起态交给 Element 自己居中图标，改了会顶偏 */
+    &:not(.el-menu--collapse) :deep(.el-menu-item) {
+      padding-left: 14px !important;
     }
 
     :deep(.el-menu-item span) {

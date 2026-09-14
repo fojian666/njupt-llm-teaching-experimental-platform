@@ -75,8 +75,8 @@ const groups = computed(() => {
 <style scoped lang="scss">
 .side {
   width: 232px;
-  background: #fbfbfd; /* iOS 侧栏那种极淡的灰 */
-  border-right: 1px solid rgba(60, 60, 67, 0.08);
+  background: var(--bg-soft); /* iOS 侧栏那种极淡的灰 */
+  border-right: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
 
@@ -86,7 +86,7 @@ const groups = computed(() => {
 
   .new-btn {
     width: 100%;
-    border-radius: 10px;
+    border-radius: var(--radius);
   }
 
   .conv-list {
@@ -108,18 +108,18 @@ const groups = computed(() => {
     align-items: center;
     padding: 9px 10px;
     margin-bottom: 2px;
-    border-radius: 9px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 13px;
     color: var(--ink-2);
     transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
 
     &:hover {
-      background: rgba(120, 120, 128, 0.08);
+      background: var(--bg-hover);
     }
 
     &.active {
-      background: rgba(0, 122, 255, 0.1);
+      background: var(--brand-soft);
       color: var(--brand-ink);
       font-weight: 500;
     }
@@ -154,8 +154,8 @@ const groups = computed(() => {
         background-color 0.15s var(--ease);
 
       &:hover {
-        color: #e5484d;
-        background: rgba(229, 72, 77, 0.1);
+        color: var(--danger);
+        background: var(--danger-soft);
       }
     }
 
