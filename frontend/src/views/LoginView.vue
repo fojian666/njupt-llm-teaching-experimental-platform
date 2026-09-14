@@ -13,6 +13,12 @@
         <span class="core"><el-icon :size="26"><Cpu /></el-icon></span>
       </div>
 
+      <!-- 一双会跟随光标的眼睛：把物联网"感知"拟人化，光标移到哪瞳孔看向哪 -->
+      <div ref="watcherRef" class="watcher" aria-hidden="true">
+        <span class="eye"><span class="pupil"></span></span>
+        <span class="eye"><span class="pupil"></span></span>
+      </div>
+
       <h1 class="title">{{ title }}</h1>
       <p class="sub">基于教材与培养方案的 RAG 学科知识问答</p>
 
@@ -32,6 +38,7 @@
             <el-input
               v-model="form.password" type="password" placeholder="密码"
               show-password autocomplete="current-password"
+              @focus="onPwdFocus" @blur="onPwdBlur"
             >
               <template #prefix><el-icon><Lock /></el-icon></template>
             </el-input>
@@ -120,10 +127,57 @@ function onMouseMove(e: MouseEvent) {
   pointer.x = e.clientX
   pointer.y = e.clientY
   pointer.active = true
+  scheduleEyes()
 }
 function onMouseLeave() {
   parallax.value = { '--px': '0px', '--py': '0px' }
   pointer.active = false
+  updateEyes()
+}
+
+// ---------------- 跟随光标的眼睛 ----------------
+const watcherRef = ref<HTMLElement | null>(null)
+const pwdFocused = ref(false)
+let eyeRaf = 0
+/** 瞳孔跟随鼠标：算每个眼中心到光标的夹角，把瞳孔沿该方向推到最大偏移。
+ *  输入密码时改成"低头看键盘"，是一个常见的贴心小动作。 */
+function updateEyes() {
+  if (reducedMotion()) return
+  const watcher = watcherRef.value
+  if (!watcher) return
+  const eyes = watcher.querySelectorAll<HTMLElement>('.eye')
+  const MAX = 13
+  eyes.forEach((eye) => {
+    const r = eye.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + r.height / 2
+    let dx = 0
+    let dy = 0
+    if (pwdFocused.value) {
+      dy = MAX
+    } else if (pointer.active) {
+      const ang = Math.atan2(pointer.y - cy, pointer.x - cx)
+      dx = Math.cos(ang) * MAX
+      dy = Math.sin(ang) * MAX
+    }
+    eye.style.setProperty('--dx', dx.toFixed(1) + 'px')
+    eye.style.setProperty('--dy', dy.toFixed(1) + 'px')
+  })
+}
+function scheduleEyes() {
+  if (eyeRaf) return
+  eyeRaf = requestAnimationFrame(() => {
+    eyeRaf = 0
+    updateEyes()
+  })
+}
+function onPwdFocus() {
+  pwdFocused.value = true
+  updateEyes()
+}
+function onPwdBlur() {
+  pwdFocused.value = false
+  updateEyes()
 }
 
 // ---------------- 粒子互联网络 ----------------
@@ -249,6 +303,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafId)
+  cancelAnimationFrame(eyeRaf)
   window.removeEventListener('resize', resize)
   document.removeEventListener('visibilitychange', onVisibility)
 })
@@ -385,6 +440,61 @@ onBeforeUnmount(() => {
     transform: scale(1.18);
     opacity: 0;
   }
+}
+
+/* ---------------- 跟随光标的眼睛 ---------------- */
+.watcher {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 16px;
+  animation: card-in 0.6s var(--ease) both;
+}
+
+.eye {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 36%, #ffffff 0%, #dcebff 62%, #a9c8f5 100%);
+  border: 1px solid rgba(140, 190, 255, 0.5);
+  box-shadow:
+    inset 0 -7px 13px rgba(20, 50, 90, 0.25),
+    0 6px 18px rgba(10, 30, 60, 0.42);
+  /* 这两个变量由 JS 写入，决定瞳孔偏移 */
+  --dx: 0px;
+  --dy: 0px;
+
+  /* 玻璃高光，让眼白有立体感 */
+  &::after {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 9px;
+    width: 13px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    filter: blur(1px);
+    pointer-events: none;
+  }
+}
+
+.pupil {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #0a1a33 0%, #0a1a33 55%, #05070f 100%);
+  /* 青色辉光呼应科技风强调色 */
+  box-shadow:
+    0 0 10px rgba(34, 211, 197, 0.7),
+    inset 0 0 4px rgba(34, 211, 197, 0.5);
+  transform: translate(var(--dx), var(--dy));
+  transition: transform 0.12s ease-out;
 }
 
 /* ---------------- 标题 ---------------- */
