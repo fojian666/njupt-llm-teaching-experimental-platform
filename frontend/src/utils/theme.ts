@@ -1,20 +1,30 @@
 /**
- * 主题切换。
+ * 主题切换：三套主题，全部由 CSS 变量承担，组件侧不需要知道当前是哪套。
  *
- * 做法：<html> 上加/去 dark 类，配色全部由 CSS 变量（styles/index.scss）承担，
- * 组件侧不需要知道当前是什么主题。
+ *   light  亮色（默认）
+ *   dark   暗色，纯黑底
+ *   tech   科技风，深海军蓝 + 蓝青双色 + 玻璃质感（与登录页同一套语言）
  *
  * 首屏防白闪：index.html 里有一段内联脚本，在样式加载前就把类名写上去；
- * 这里的 initTheme 负责后续同步与提供切换 API。
+ * 这里的 initTheme 负责后续同步与切换。
  */
 import { ref } from 'vue'
 
-export type ThemeMode = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'tech'
 
 const STORAGE_KEY = 'iot-edu-theme'
 
+/** 三套主题的展示信息。切换入口按这张表渲染，新增主题只改这里。 */
+export const THEMES: { mode: ThemeMode; label: string; icon: string; hint: string }[] = [
+  { mode: 'light', label: '亮色', icon: 'Sunny', hint: '白底浅灰，适合白天' },
+  { mode: 'dark', label: '暗色', icon: 'Moon', hint: '纯黑底，夜里不刺眼' },
+  { mode: 'tech', label: '科技风', icon: 'MagicStick', hint: '深蓝玻璃质感，投屏演示更抓眼' },
+]
+
 /** 当前主题。响应式，供界面显示图标用。 */
 export const theme = ref<ThemeMode>('light')
+
+const ALL_CLASSES: ThemeMode[] = ['dark', 'tech']
 
 function systemPrefersDark(): boolean {
   return typeof window !== 'undefined'
@@ -26,7 +36,7 @@ function systemPrefersDark(): boolean {
 export function resolveInitialTheme(): ThemeMode {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
+    if (saved === 'light' || saved === 'dark' || saved === 'tech') return saved
   } catch {
     /* 隐私模式下 localStorage 可能不可用，忽略即可 */
   }
@@ -35,9 +45,11 @@ export function resolveInitialTheme(): ThemeMode {
 
 function apply(mode: ThemeMode) {
   const root = document.documentElement
-  root.classList.toggle('dark', mode === 'dark')
+  // 先清掉其它主题的类，避免出现 dark + tech 同时挂着
+  root.classList.remove(...ALL_CLASSES)
+  if (mode !== 'light') root.classList.add(mode)
   // 让原生控件（滚动条、表单、日期选择器）也切到对应配色
-  root.style.colorScheme = mode
+  root.style.colorScheme = mode === 'light' ? 'light' : 'dark'
   theme.value = mode
 }
 
@@ -99,8 +111,11 @@ export function setTheme(mode: ThemeMode, persist = true, origin?: { x: number; 
   startViewTransition.call(document, commit)
 }
 
-export function toggleTheme(origin?: { x: number; y: number }) {
-  setTheme(theme.value === 'dark' ? 'light' : 'dark', true, origin)
+/** 按顺序切到下一套主题，供快捷键或单按钮使用。 */
+export function cycleTheme(origin?: { x: number; y: number }) {
+  const idx = THEMES.findIndex((t) => t.mode === theme.value)
+  const next = THEMES[(idx + 1) % THEMES.length]
+  setTheme(next.mode, true, origin)
 }
 
 /** 应用启动时调用一次，让响应式状态与 <html> 上的类名一致。 */

@@ -27,21 +27,29 @@
           <div :key="route.path" class="title">{{ route.meta.title || '' }}</div>
         </div>
         <div class="head-right">
-          <el-tooltip :content="theme === 'dark' ? '切换到亮色' : '切换到暗色'" placement="bottom">
+          <!-- 注意：触发元素不要再包 el-tooltip —— dropdown 靠默认插槽的根节点注册事件，
+               包一层组件后它认不到实际 DOM 节点，菜单会永远 display:none（点了没反应）。
+               需要提示就用原生 title。 -->
+          <el-dropdown trigger="click" :show-arrow="false" @command="onThemeCommand">
             <el-icon
-              class="theme-btn"
-              :size="17"
-              role="button"
-              tabindex="0"
-              aria-label="切换主题"
-              @click="onToggleTheme"
-              @keydown.enter.prevent="onToggleTheme"
-              @keydown.space.prevent="onToggleTheme"
+              class="theme-btn" :size="17" role="button" tabindex="0" aria-label="切换主题"
+              :title="`当前：${currentThemeLabel}，点击切换`"
             >
-              <Moon v-if="theme === 'light'" />
-              <Sunny v-else />
+              <component :is="currentThemeIcon" />
             </el-icon>
-          </el-tooltip>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="t in THEMES" :key="t.mode" :command="t.mode"
+                  :class="{ 'is-current': t.mode === theme }"
+                >
+                  <el-icon><component :is="t.icon" /></el-icon>
+                  <span class="theme-name">{{ t.label }}</span>
+                  <span class="theme-hint">{{ t.hint }}</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <!-- 用户菜单：click 触发（hover 路过就弹卡很打扰）+ 右对齐 + 无箭头 + 紧贴 -->
           <el-dropdown
             trigger="click"
@@ -83,7 +91,7 @@
 import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { theme, toggleTheme } from '@/utils/theme'
+import { THEMES, setTheme, theme } from '@/utils/theme'
 
 const route = useRoute()
 const router = useRouter()
@@ -91,15 +99,15 @@ const userStore = useUserStore()
 const collapsed = ref(false)
 const menuOpen = ref(false)
 
-/** 切换主题：把点击/按键位置坐标传给动画，圆形扩散才能从图标处展开 */
-function onToggleTheme(e?: MouseEvent | KeyboardEvent) {
-  if (e && 'clientX' in e && (e.clientX || e.clientY)) {
-    toggleTheme({ x: e.clientX, y: e.clientY })
-    return
-  }
-  const el = e?.currentTarget as HTMLElement | undefined
-  const rect = el?.getBoundingClientRect()
-  toggleTheme(rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : undefined)
+/** 切换主题：把点击位置坐标传给动画，圆形扩散才能从图标处展开 */
+const currentTheme = computed(() => THEMES.find((t) => t.mode === theme.value) ?? THEMES[0])
+const currentThemeLabel = computed(() => currentTheme.value.label)
+const currentThemeIcon = computed(() => currentTheme.value.icon)
+
+function onThemeCommand(mode: string) {
+  const el = document.querySelector('.theme-btn')?.getBoundingClientRect()
+  setTheme(mode as 'light' | 'dark' | 'tech', true,
+    el ? { x: el.x + el.width / 2, y: el.y + el.height / 2 } : undefined)
 }
 
 /** el-main 是内部滚动的（overflow:auto），window 不滚，所以路由切换要手动复位 */
@@ -266,6 +274,15 @@ async function onCommand(cmd: string) {
       color: var(--brand);
       transform: rotate(-15deg);
     }
+  }
+
+  .theme-name {
+    margin-right: 8px;
+  }
+
+  .theme-hint {
+    color: var(--ink-3);
+    font-size: 12px;
   }
 
   .collapse-btn {

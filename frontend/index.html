@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>物联网学科大模型教学实验平台</title>
     <script>
-      /* 主题必须在样式生效前落定，否则暗色用户会看到一帧白屏。
-         脚本内联在这里，跑在 CSS 与 Vue 之前；逻辑与 utils/theme.ts 保持一致。 */
+      /* 主题必须在样式生效前落定，否则非亮色用户会看到一帧白屏。
+         脚本内联在这里，跑在 CSS 与 Vue 之前；逻辑与 utils/theme.ts 保持一致。
+         light / dark / tech 三套主题，类名挂在 <html> 上。 */
       (function () {
         try {
           var saved = localStorage.getItem('iot-edu-theme')
-          var dark = saved
-            ? saved === 'dark'
-            : window.matchMedia('(prefers-color-scheme: dark)').matches
-          if (dark) {
-            document.documentElement.classList.add('dark')
+          var mode = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          if (mode === 'dark' || mode === 'tech') {
+            document.documentElement.classList.add(mode)
             document.documentElement.style.colorScheme = 'dark'
           }
         } catch (e) {
