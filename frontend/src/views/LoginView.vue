@@ -18,16 +18,16 @@
     </button>
 
     <div class="stage" :style="parallax">
-      <!-- 徽标：玻璃底 + 呼吸光环 + 旋转流光描边 -->
-      <div class="badge">
-        <span class="ring" aria-hidden="true"></span>
-        <span class="core"><el-icon :size="26"><Cpu /></el-icon></span>
-      </div>
-
-      <!-- 一双会跟随光标的眼睛：把物联网"感知"拟人化，光标移到哪瞳孔看向哪 -->
-      <div ref="watcherRef" class="watcher" aria-hidden="true">
-        <span class="eye"><span class="pupil"></span></span>
-        <span class="eye"><span class="pupil"></span></span>
+      <!-- 南邮校徽：真实校徽 + 嵌在盾徽里的眼睛。瞳孔跟随光标，把物联网"感知"拟人化 -->
+      <div class="emblem">
+        <span class="emblem-plate" aria-hidden="true"></span>
+        <span class="emblem-ring" aria-hidden="true"></span>
+        <img class="emblem-img" :src="emblem" alt="南京邮电大学校徽" draggable="false" />
+        <!-- 眼睛嵌在盾徽中央；ref 供 JS 写入瞳孔偏移 -->
+        <div ref="watcherRef" class="emblem-eyes" aria-hidden="true">
+          <span class="eye"><span class="pupil"></span></span>
+          <span class="eye"><span class="pupil"></span></span>
+        </div>
       </div>
 
       <h1 class="title">{{ title }}</h1>
@@ -90,6 +90,7 @@ import { ElMessage } from 'element-plus'
 import { Sunny, MagicStick } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { theme, cycleTheme, THEMES } from '@/utils/theme'
+import emblem from '@/assets/njupt-emblem.png'
 
 const router = useRouter()
 const route = useRoute()
@@ -172,7 +173,7 @@ function updateEyes() {
   const watcher = watcherRef.value
   if (!watcher) return
   const eyes = watcher.querySelectorAll<HTMLElement>('.eye')
-  const MAX = 13
+  const MAX = 7
   eyes.forEach((eye) => {
     const r = eye.getBoundingClientRect()
     const cx = r.left + r.width / 2
@@ -420,36 +421,55 @@ onBeforeUnmount(() => {
   transition: transform 0.3s var(--ease);
 }
 
-/* ---------------- 徽标 ---------------- */
-.badge {
+/* ---------------- 校徽（眼睛嵌在盾徽里） ---------------- */
+.emblem {
   position: relative;
-  width: 74px;
-  height: 74px;
+  width: 152px;
+  height: 152px;
   margin-bottom: 18px;
   display: grid;
   place-items: center;
   animation: card-in 0.6s var(--ease) both;
 
-  .core {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    place-items: center;
-    width: 58px;
-    height: 58px;
-    border-radius: 18px;
-    color: #fff;
-    background: linear-gradient(145deg, #0a84ff, #00c6fb);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 26px rgba(10, 132, 255, 0.4);
-  }
-
-  /* 呼吸光环 */
-  .ring {
+  /* 浅色托板：校徽本身是蓝白的，直接放深色科技底上会看不清，用托板保证可读 */
+  .emblem-plate {
     position: absolute;
     inset: 0;
-    border-radius: 50%;
-    border: 1px solid rgba(120, 190, 255, 0.55);
+    border-radius: 28px;
+    background: linear-gradient(158deg, #ffffff 0%, #edf3ff 100%);
+    box-shadow:
+      0 18px 44px rgba(6, 22, 48, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  /* 呼吸光环：沿用原徽标的动效语言 */
+  .emblem-ring {
+    position: absolute;
+    inset: -7px;
+    border-radius: 32px;
+    border: 1px solid rgba(120, 190, 255, 0.5);
     animation: pulse 2.8s var(--ease) infinite;
+  }
+
+  .emblem-img {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 116px;
+    height: auto;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* 眼睛嵌在盾徽中央，略偏上：下方的邮/电徽记露出来当"身体" */
+  .emblem-eyes {
+    position: absolute;
+    z-index: 2;
+    top: 46%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 11px;
   }
 }
 
@@ -468,40 +488,33 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ---------------- 跟随光标的眼睛 ---------------- */
-.watcher {
-  display: flex;
-  gap: 18px;
-  margin-bottom: 16px;
-  animation: card-in 0.6s var(--ease) 0.18s both;
-}
-
+/* ---------------- 眼睛（嵌在盾徽里，跟随光标 + 定时眨眼） ---------------- */
 .eye {
   position: relative;
-  width: 46px;
-  height: 46px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 36%, #ffffff 0%, #dcebff 62%, #a9c8f5 100%);
-  border: 1px solid rgba(140, 190, 255, 0.5);
-  box-shadow:
-    inset 0 -7px 13px rgba(20, 50, 90, 0.25),
-    0 6px 18px rgba(10, 30, 60, 0.42);
+  background: radial-gradient(circle at 50% 38%, #ffffff 0%, #eaf1ff 70%, #cfe0ff 100%);
+  border: 1px solid rgba(140, 180, 240, 0.6);
+  box-shadow: inset 0 -5px 9px rgba(20, 50, 90, 0.22);
   /* 这两个变量由 JS 写入，决定瞳孔偏移 */
   --dx: 0px;
   --dy: 0px;
+  /* 定时眨眼：打破"一直盯着你"的凝视感，这是原先最吓人的一点 */
+  animation: blink 5.4s var(--ease) infinite;
 
   /* 玻璃高光，让眼白有立体感 */
   &::after {
     content: '';
     position: absolute;
-    top: 7px;
-    left: 9px;
-    width: 13px;
-    height: 9px;
+    top: 5px;
+    left: 6px;
+    width: 9px;
+    height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
-    filter: blur(1px);
+    background: rgba(255, 255, 255, 0.9);
+    filter: blur(0.6px);
     pointer-events: none;
   }
 }
@@ -510,17 +523,28 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 18px;
-  height: 18px;
-  margin: -9px 0 0 -9px;
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, #0a1a33 0%, #0a1a33 55%, #05070f 100%);
-  /* 青色辉光呼应科技风强调色 */
-  box-shadow:
-    0 0 10px rgba(34, 211, 197, 0.7),
-    inset 0 0 4px rgba(34, 211, 197, 0.5);
+  /* 深蓝虹膜 + 左上高光：比纯黑瞳更有"神"，比原青色辉光少一分监控感 */
+  background: radial-gradient(circle at 36% 32%, #ffffff 0 14%, #24407f 32%, #12224f 100%);
+  box-shadow: 0 0 6px rgba(70, 140, 255, 0.5);
   transform: translate(var(--dx), var(--dy));
   transition: transform 0.12s ease-out;
+}
+
+/* 眨眼：大部分时间睁着，末尾迅速闭合再睁开 */
+@keyframes blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94%, 96% { transform: scaleY(0.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eye,
+  .emblem-ring {
+    animation: none;
+  }
 }
 
 /* ---------------- 标题 ---------------- */
