@@ -77,7 +77,7 @@
                 ></div>
 
                 <div v-if="!streaming" class="msg-actions">
-                  <el-button v-if="m.content" link size="small" @click="copyAnswer(m)">
+                  <el-button v-if="m.content" link size="small" title="复制回答" aria-label="复制回答" @click="copyAnswer(m)">
                     <el-icon><DocumentCopy /></el-icon>
                   </el-button>
                   <el-button v-if="i === messages.length - 1" link size="small" @click="retry(m)">
@@ -85,8 +85,8 @@
                   </el-button>
                   <template v-if="m.model_name && i === messages.length - 1">
                     <span class="meta">{{ m.model_name }}<template v-if="m.latency_ms"> · {{ (m.latency_ms / 1000).toFixed(1) }}s</template></span>
-                    <el-button link size="small" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
-                    <el-button link size="small" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
+                    <el-button link size="small" title="这回答有用" aria-label="这回答有用" @click="rate(m, 'like')"><el-icon><component :is="m.feedback === 'like' ? 'CircleCheckFilled' : 'CircleCheck'" /></el-icon></el-button>
+                    <el-button link size="small" title="这回答没帮上忙" aria-label="这回答没帮上忙" @click="rate(m, 'dislike')"><el-icon><component :is="m.feedback === 'dislike' ? 'CircleCloseFilled' : 'CircleClose'" /></el-icon></el-button>
                   </template>
                 </div>
               </template>
@@ -165,56 +165,8 @@
       </div>
     </div>
 
-    <!-- 右侧：检索来源 -->
-    <div class="side right">
-      <div class="cite-head">
-        <b>检索来源</b>
-        <span class="count">{{ citations.length }}</span>
-      </div>
-      <div class="cite-list">
-        <div
-          v-for="c in citations"
-          :key="`${c.chunk_id}-${c.index}`"
-          class="citation-item"
-          :class="{ 'is-cited': c.cited }"
-          :style="{ '--i': Math.min(c.index, 10) }"
-          title="查看该切片全文"
-          @click="openCitation(c)"
-        >
-          <div class="cite-top">
-            <span class="idx">[{{ c.index }}]</span>
-            <span class="src">{{ c.source_name }}</span>
-            <el-icon class="open-ico"><ArrowRight /></el-icon>
-          </div>
-          <div class="path">{{ c.chapter_path || '（无章节路径）' }}</div>
-          <div class="snippet">{{ c.snippet }}</div>
-          <div class="scores">
-            综合 {{ c.score.toFixed(3) }} · 向量 {{ c.vector_score.toFixed(3) }} · 关键词 {{ c.lexical_score.toFixed(3) }}
-            <span v-if="c.cited" class="cited-tag">已引用</span>
-          </div>
-        </div>
-        <el-empty v-if="!citations.length" description="尚未检索" :image-size="60" />
-      </div>
-    </div>
-
-    <!-- 引用详情：点来源面板的条目看切片全文 -->
-    <el-drawer v-model="citeDrawer" size="560px" :title="`切片详情 [#${citeChunk?.seq ?? ''}]`">
-      <div v-loading="citeLoading">
-        <el-descriptions v-if="citeCurrent" :column="1" border size="small">
-          <el-descriptions-item label="来源文件">{{ citeCurrent.source_name }}</el-descriptions-item>
-          <el-descriptions-item label="章节路径">{{ citeCurrent.chapter_path || '（无章节路径）' }}</el-descriptions-item>
-          <el-descriptions-item label="切片编号">#{{ citeCurrent.index }}</el-descriptions-item>
-          <el-descriptions-item label="相关度">
-            综合 {{ citeCurrent.score.toFixed(3) }} · 向量 {{ citeCurrent.vector_score.toFixed(3) }} · 关键词 {{ citeCurrent.lexical_score.toFixed(3) }}
-          </el-descriptions-item>
-        </el-descriptions>
-        <div class="cite-body-head">
-          <span>切片全文</span>
-          <el-button link size="small" @click="copyChunk">复制</el-button>
-        </div>
-        <pre class="cite-body">{{ citeChunk?.content || '加载中…' }}</pre>
-      </div>
-    </el-drawer>
+    <!-- 右侧：检索来源（面板与切片抽屉都在组件里） -->
+    <CitationPanel :citations="citations" />
   </div>
 </template>
 
@@ -267,7 +219,8 @@ import { configApi } from '@/api/auth'
 import { streamChat } from '@/api/sse'
 import { agentGradient } from '@/utils/agentColor'
 import ConversationList from './components/ConversationList.vue'
-import type { Agent, ChatMessage, Chunk, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
+import CitationPanel from './components/CitationPanel.vue'
+import type { Agent, ChatMessage, Citation, Conversation, KnowledgeBase, LlmOption } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -565,39 +518,6 @@ async function rate(m: ChatMessage, rating: 'like' | 'dislike') {
   ElMessage.success('感谢反馈')
 }
 
-// ---------- 引用详情：点来源面板看切片全文 ----------
-// 来源面板里的内容是截断的，这里按 chunk_id 取回完整切片（含编号与字符数）
-const citeDrawer = ref(false)
-const citeLoading = ref(false)
-const citeCurrent = ref<Citation | null>(null)
-const citeChunk = ref<Chunk | null>(null)
-
-async function openCitation(c: Citation) {
-  citeCurrent.value = c
-  citeChunk.value = null
-  citeDrawer.value = true
-  citeLoading.value = true
-  try {
-    citeChunk.value = await kbApi.chunk(c.chunk_id)
-  } catch {
-    ElMessage.error('切片已不存在（可能已被删除或移出知识库）')
-    citeDrawer.value = false
-  } finally {
-    citeLoading.value = false
-  }
-}
-
-async function copyChunk() {
-  const text = citeChunk.value?.content
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制切片全文')
-  } catch {
-    ElMessage.warning('浏览器拒绝了剪贴板访问')
-  }
-}
-
 /** 一键复制回答正文（复制的是 markdown 原文，粘到别处仍可再渲染） */
 async function copyAnswer(m: ChatMessage) {
   try {
@@ -661,113 +581,6 @@ onMounted(loadAll)
 }
 
 /* 右侧检索来源面板。左侧会话栏已拆成 ConversationList 组件，样式跟着组件走了 */
-.side {
-  display: flex;
-  flex-direction: column;
-
-  &.right {
-    width: 316px;
-    background: #fbfbfd;
-    border-right: none;
-    border-left: 1px solid rgba(60, 60, 67, 0.08);
-
-    .cite-head {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 16px 16px 10px;
-      border-bottom: none;
-
-      .count {
-        padding: 1px 8px;
-        border-radius: 999px;
-        background: rgba(120, 120, 128, 0.12);
-        color: var(--ink-2);
-        font-size: 12px;
-      }
-    }
-
-    .cite-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 4px 12px 16px;
-    }
-  }
-}
-
-.citation-item {
-  border-radius: 12px;
-  border-color: rgba(60, 60, 67, 0.1);
-  background: #fff;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-
-  &:hover {
-    border-color: rgba(64, 158, 255, 0.45);
-    box-shadow: 0 2px 10px rgba(64, 158, 255, 0.12);
-
-    .open-ico {
-      opacity: 1;
-      transform: translateX(2px);
-    }
-  }
-
-  .open-ico {
-    margin-left: auto;
-    color: var(--brand);
-    opacity: 0;
-    transition: opacity 0.15s, transform 0.15s;
-  }
-
-  .cite-top {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    font-size: 13px;
-    font-weight: 600;
-
-    .src {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .path {
-    margin: 4px 0;
-    color: var(--brand-ink);
-    font-size: 12px;
-  }
-
-  .snippet {
-    color: var(--ink-2);
-    font-size: 12px;
-    line-height: 1.62;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .scores {
-    margin-top: 8px;
-    color: var(--ink-3);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums; /* 三个分数按位对齐，扫一眼就能比大小 */
-    display: flex;
-    gap: 6px;
-    align-items: center;
-
-    .cited-tag {
-      padding: 1px 7px;
-      border-radius: 999px;
-      background: rgba(52, 199, 89, 0.14);
-      color: #1f9d47;
-      font-size: 11px;
-    }
-  }
-}
-
 .main {
   flex: 1;
   display: flex;
@@ -1212,29 +1025,4 @@ onMounted(loadAll)
 }
 
 /* 引用详情抽屉（顶层选择器：抽屉内容 teleport 到 body，嵌套在选择器里会匹配不到） */
-.cite-body-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 16px 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.cite-body {
-  margin: 0;
-  padding: 14px;
-  max-height: 46vh;
-  overflow: auto;
-  background: #fafbfc;
-  border: 1px solid rgba(60, 60, 67, 0.1);
-  border-radius: 10px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.75;
-  color: var(--ink-1);
-}
 </style>
