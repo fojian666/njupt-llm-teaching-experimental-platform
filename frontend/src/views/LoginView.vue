@@ -17,7 +17,7 @@
       <el-icon :size="18"><component :is="currentThemeIcon" /></el-icon>
     </button>
 
-    <div class="stage" :style="parallax">
+    <div class="stage">
       <!-- 物联网小机器人：眼睛跟随光标，输入密码时抬手捂眼；胸口完整别南邮校徽 -->
       <div class="bot" :class="{ 'is-shy': pwdFocused }" aria-hidden="true">
         <span class="antenna" aria-hidden="true"><i class="antenna-light"></i></span>
@@ -151,23 +151,14 @@ async function submit() {
   }
 }
 
-// ---------------- 鼠标视差 ----------------
-const parallax = ref<Record<string, string>>({})
+// ---------------- 鼠标位置（仅供眼睛跟随，内容本身不再视差晃动） ----------------
 function onMouseMove(e: MouseEvent) {
-  const cx = window.innerWidth / 2
-  const cy = window.innerHeight / 2
-  // 位移很小：只是"卡片有厚度"的暗示，幅度大了会晕
-  parallax.value = {
-    '--px': `${((e.clientX - cx) / cx) * 6}px`,
-    '--py': `${((e.clientY - cy) / cy) * 6}px`,
-  }
   pointer.x = e.clientX
   pointer.y = e.clientY
   pointer.active = true
   scheduleEyes()
 }
 function onMouseLeave() {
-  parallax.value = { '--px': '0px', '--py': '0px' }
   pointer.active = false
   updateEyes()
 }
@@ -427,8 +418,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  transform: translate3d(var(--px, 0), var(--py, 0), 0);
-  transition: transform 0.3s var(--ease);
 }
 
 /* ---------------- 物联网小机器人（眼睛跟随光标，输密码捂眼） ---------------- */
