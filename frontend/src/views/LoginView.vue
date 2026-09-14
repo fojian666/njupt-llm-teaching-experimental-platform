@@ -6,6 +6,17 @@
     <div class="glow glow-b" aria-hidden="true"></div>
     <div class="grid" aria-hidden="true"></div>
 
+    <!-- 主题切换：与内部同一套（light/dark/tech），点击即在三套间循环，不弹下拉 -->
+    <button
+      class="theme-toggle"
+      type="button"
+      :title="`当前主题：${currentThemeLabel}，点击切换`"
+      :aria-label="`切换主题，当前：${currentThemeLabel}`"
+      @click="onToggleTheme"
+    >
+      <el-icon :size="18"><component :is="currentThemeIcon" /></el-icon>
+    </button>
+
     <div class="stage" :style="parallax">
       <!-- 徽标：玻璃底 + 呼吸光环 + 旋转流光描边 -->
       <div class="badge">
@@ -67,15 +78,18 @@
 
 <script setup lang="ts">
 /**
- * 登录页：深色科技风。
+ * 登录页：科技风门面，跟随全局主题（light/dark/tech）。
  *
  * 背景是可交互的粒子互联网络 —— 物联网的视觉隐喻，鼠标移入时近邻节点会被拉亮。
+ * 右上角有主题切换按钮，点击即在三套主题间循环（与内部 MainLayout 同一套 utils）。
  * 动效全部服从 prefers-reduced-motion；页面不可见时停掉动画循环，别空转烧电。
  */
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Sunny, Moon, MagicStick } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { theme, cycleTheme, THEMES } from '@/utils/theme'
 
 const router = useRouter()
 const route = useRoute()
@@ -94,6 +108,18 @@ const demoAccounts = [
   { label: '教师', username: 'teacher', password: 'teacher123' },
   { label: '学生', username: 'student', password: 'student123' },
 ]
+
+// ---------------- 主题切换（与内部一致） ----------------
+const THEME_ICONS: Record<string, any> = { light: Sunny, dark: Moon, tech: MagicStick }
+const currentThemeIcon = computed(() => THEME_ICONS[theme.value] ?? Moon)
+const currentThemeLabel = computed(
+  () => THEMES.find((t) => t.mode === theme.value)?.label ?? '',
+)
+/** 点击即在 light → dark → tech 间循环，并把点击坐标交给 View Transition
+ *  做从按钮处展开的圆形扩散。内部 MainLayout 用同一套 utils，行为完全一致。 */
+function onToggleTheme(e: MouseEvent) {
+  cycleTheme({ x: e.clientX, y: e.clientY })
+}
 
 function fill(acc: { username: string; password: string }) {
   form.username = acc.username
@@ -317,7 +343,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   height: 100%;
   overflow: hidden;
-  /* 登录页永远是深色：它是门面，跟随主题切换反而会削弱冲击力 */
+  /* 登录页跟随全局主题：tech/dark 走深蓝科技底，light 走浅色；切换用同一套 utils */
   background:
     radial-gradient(1200px 600px at 15% 0%, #0d2340 0%, transparent 60%),
     radial-gradient(900px 500px at 85% 100%, #102a4d 0%, transparent 62%),
@@ -337,7 +363,7 @@ onBeforeUnmount(() => {
     border-radius: 50%;
     filter: blur(70px);
     pointer-events: none;
-    opacity: 0.55;
+    opacity: 0.32;
   }
 
   .glow-a {
@@ -447,7 +473,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 18px;
   margin-bottom: 16px;
-  animation: card-in 0.6s var(--ease) both;
+  animation: card-in 0.6s var(--ease) 0.18s both;
 }
 
 .eye {
@@ -511,7 +537,7 @@ onBeforeUnmount(() => {
   background-clip: text;
   color: transparent;
   filter: drop-shadow(0 6px 24px rgba(64, 158, 255, 0.22));
-  animation: fade-up 0.6s var(--ease) 0.05s both, title-sheen 7s ease-in-out infinite alternate;
+  animation: fade-up 0.6s var(--ease) 0.34s both, title-sheen 7s ease-in-out infinite alternate;
 }
 
 @keyframes title-sheen {
@@ -527,7 +553,7 @@ onBeforeUnmount(() => {
   margin: 0 0 14px;
   color: rgba(200, 220, 245, 0.72);
   font-size: 13px;
-  animation: fade-up 0.6s var(--ease) 0.35s both;
+  animation: fade-up 0.6s var(--ease) 0.46s both;
 }
 
 .tagline {
@@ -537,7 +563,7 @@ onBeforeUnmount(() => {
   margin-bottom: 22px;
   color: rgba(160, 190, 225, 0.62);
   font-size: 12px;
-  animation: fade-up 0.6s var(--ease) 0.45s both;
+  animation: fade-up 0.6s var(--ease) 0.58s both;
 
   i {
     width: 3px;
@@ -560,7 +586,7 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   --el-box-shadow-light: 0 24px 60px rgba(2, 8, 20, 0.55);
   overflow: hidden;
-  animation: card-in 0.6s var(--ease) 0.1s both;
+  animation: card-in 0.6s var(--ease) 0.7s both;
 
   /* 斜向流光扫过卡片表面，慢速、低透明度，只做质感 */
   .card-shine {
@@ -685,7 +711,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-top: 16px;
   flex-wrap: wrap;
-  animation: fade-up 0.5s var(--ease) 0.36s both;
+  animation: fade-up 0.5s var(--ease) 0.86s both;
 
   .demo-label {
     color: rgba(170, 195, 225, 0.6);
@@ -718,7 +744,7 @@ onBeforeUnmount(() => {
   color: rgba(150, 180, 215, 0.42);
   font-size: 12px;
   letter-spacing: 1px;
-  animation: fade-up 0.6s var(--ease) 0.5s both;
+  animation: fade-up 0.6s var(--ease) 1.02s both;
 }
 
 /* 小屏：卡片撑满、标题缩小，别让标题换行成三行 */
@@ -729,6 +755,144 @@ onBeforeUnmount(() => {
 
   .tagline {
     display: none;
+  }
+}
+
+/* ---------------- 右上角主题切换按钮 ---------------- */
+.theme-toggle {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 5;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(140, 190, 255, 0.28);
+  background: rgba(16, 26, 44, 0.5);
+  color: #cfe4ff;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease),
+    transform 0.2s var(--ease), box-shadow 0.2s var(--ease), color 0.2s var(--ease);
+  animation: fade-up 0.5s var(--ease) 0.2s both;
+
+  &:hover {
+    border-color: var(--brand);
+    background: rgba(10, 132, 255, 0.22);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(10, 132, 255, 0.28);
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+/* ---------------- 登录页跟随全局主题 ---------------- */
+/* tech 额外点亮光晕，与暗色做出区分；两者共用深蓝科技底 */
+html.tech .login-page .glow {
+  opacity: 0.6;
+}
+
+/* 亮色：干净浅底 + 深色文字，输入框/卡片/演示胶囊/按钮相应转浅。
+   注意 light 在主题机制里是「不加类名」（见 utils/theme.ts 的 modeClasses），
+   所以要用 :not(.dark):not(.tech) 匹配，写成 html.light 永远不会命中。 */
+html:not(.dark):not(.tech) .login-page {
+  background:
+    radial-gradient(1100px 620px at 12% 0%, #d8e6fb 0%, transparent 60%),
+    radial-gradient(900px 520px at 88% 100%, #e6f0ff 0%, transparent 62%),
+    #eef3fb;
+  color: #1c2b3a;
+
+  .glow {
+    opacity: 0.45;
+  }
+
+  .grid {
+    background-image:
+      linear-gradient(rgba(40, 90, 160, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40, 90, 160, 0.08) 1px, transparent 1px);
+  }
+
+  .title {
+    background: linear-gradient(100deg, #0a84ff 0%, #2b6fd6 42%, #14c8d8 72%, #0a84ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(10, 132, 255, 0.16));
+  }
+
+  .sub {
+    color: rgba(40, 60, 90, 0.72);
+  }
+
+  .tagline {
+    color: rgba(40, 70, 110, 0.6);
+
+    i {
+      background: rgba(40, 90, 160, 0.45);
+    }
+  }
+
+  .card {
+    border-color: rgba(40, 90, 160, 0.18);
+    background: rgba(255, 255, 255, 0.74);
+    --el-box-shadow-light: 0 24px 60px rgba(20, 50, 100, 0.18);
+
+    :deep(.el-input__wrapper) {
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: inset 0 0 0 1px rgba(40, 90, 160, 0.18);
+
+      &.is-focus,
+      &:hover {
+        background: #fff;
+        box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 4px rgba(10, 132, 255, 0.16);
+      }
+    }
+
+    :deep(.el-input__inner) {
+      color: #1c2b3a;
+
+      &::placeholder {
+        color: rgba(40, 60, 90, 0.5);
+      }
+    }
+  }
+
+  .demo .demo-label {
+    color: rgba(40, 60, 90, 0.6);
+  }
+
+  .demo .chip {
+    border-color: rgba(40, 90, 160, 0.22);
+    background: rgba(235, 244, 255, 0.7);
+    color: #1c4a86;
+
+    &:hover {
+      border-color: var(--brand);
+      background: rgba(10, 132, 255, 0.12);
+    }
+  }
+
+  .foot {
+    color: rgba(40, 60, 90, 0.42);
+  }
+
+  .theme-toggle {
+    border-color: rgba(40, 90, 160, 0.22);
+    background: rgba(255, 255, 255, 0.7);
+    color: #1c4a86;
+
+    &:hover {
+      border-color: var(--brand);
+      background: #fff;
+      color: #0a84ff;
+    }
   }
 }
 </style>
