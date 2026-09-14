@@ -2,12 +2,18 @@
    全局基础样式 —— 平台是中后台形态，视觉上克制，把注意力留给数据
    ============================================================ */
 
-/* ---------- 设计变量（新样式统一引用，避免颜色散落各处） ---------- */
+/* ---------- 设计变量 ----------
+   亮色是基准（:root），暗色在 html.dark 里整体覆盖。
+   组件一律引用变量，不写死颜色 —— 这是两套主题能同时成立的前提。
+   main.ts 会给 <html> 加上或去掉 dark 类。 */
 :root {
+  color-scheme: light;
+
   /* 品牌色：iOS 系统蓝。聊天页原本硬编码的就是这一支，
      这里提升为全局主色，Element 组件跟随覆盖（见下方 --el-* 段） */
   --brand: #0a84ff;
   --brand-ink: #0063d1; /* 文本态：比主色深一档，保证浅底可读 */
+  --brand-solid: #0063d1; /* 填充按钮底色：白字压在上面要过 4.5:1 对比度 */
   --brand-soft: rgba(10, 132, 255, 0.1); /* 选中/悬浮底色 */
   --brand-line: rgba(10, 132, 255, 0.45); /* 描边 */
 
@@ -15,6 +21,7 @@
   --ink-1: #1c1c1e;
   --ink-2: #48484a;
   --ink-3: #8e8e93;
+  --ink-on-brand: #ffffff; /* 铺在品牌色/渐变上的文字 */
 
   /* 分隔线：半透明灰而不是实色，压在卡片白底上更轻 */
   --line: rgba(60, 60, 67, 0.14);
@@ -51,6 +58,18 @@
   --shadow-1: 0 2px 8px rgba(16, 24, 40, 0.06);
   --shadow-2: 0 8px 24px rgba(16, 24, 40, 0.12);
 
+  /* 代码与 markdown：暗色下要换一整套，抽出来单独管 */
+  --code-block-bg: #0d1117;
+  --md-code-bg: #f0f2f5;
+  --md-code-ink: #c7254e;
+  --md-quote-bg: #f7fafd;
+  --md-table-head: #f5f7fa;
+  --md-table-even: #fbfcfd;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(144, 147, 153, 0.32);
+  --scrollbar-thumb-hover: rgba(144, 147, 153, 0.55);
+
   /* ---------- Element Plus 主题对齐 ----------
      只覆盖会直接影响观感的几项：主色、圆角、文字与边框层级。
      Element 的 primary-light-N 是主色的浅色阶，按官方比例手算好写死，
@@ -86,6 +105,90 @@
   --el-bg-color-page: #f5f5f7;
 }
 
+/* ============================================================
+   暗色主题
+   ------------------------------------------------------------
+   纯黑页面 + 近黑卡片，是 iOS 深色那套观感。品牌蓝不用改，
+   但"文本态品牌色"要提亮，否则深底上读不清。
+   注意：--el-* 必须在这里再写一遍 —— Element 自带的 dark/css-vars.css
+   也是靠 html.dark 生效，外层 :root 的覆盖会被它盖掉。
+   ============================================================ */
+html.dark {
+  color-scheme: dark;
+
+  --brand: #0a84ff;
+  --brand-ink: #6cb6ff; /* 深底上的品牌文字要提亮 */
+  --brand-solid: #0a6ad1; /* 填充按钮底色：白字压在上面要过 4.5:1 对比度 */
+  --brand-soft: rgba(10, 132, 255, 0.22);
+  --brand-line: rgba(10, 132, 255, 0.6);
+
+  --ink-1: #f2f2f7;
+  --ink-2: #c7c7cc;
+  --ink-3: #8e8e93;
+  --ink-on-brand: #ffffff;
+
+  --line: rgba(255, 255, 255, 0.16);
+  --line-soft: rgba(255, 255, 255, 0.09);
+
+  --bg-page: #000000;
+  --bg-card: #1c1c1e;
+  --bg-soft: #0e0e10;
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-hover-strong: rgba(255, 255, 255, 0.13);
+
+  --ok: #30d158;
+  --ok-soft: rgba(48, 209, 88, 0.2);
+  --warn: #ffd60a;
+  --warn-soft: rgba(255, 214, 10, 0.18);
+  --danger: #ff453a;
+  --danger-soft: rgba(255, 69, 58, 0.2);
+  --info: #98989d;
+
+  /* 深色界面里的阴影要更黑更实，否则等于没有层次 */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 10px 28px rgba(0, 0, 0, 0.62);
+
+  --code-block-bg: #0d1117;
+  --md-code-bg: rgba(255, 255, 255, 0.1);
+  --md-code-ink: #ff7b93;
+  --md-quote-bg: rgba(255, 255, 255, 0.05);
+  --md-table-head: rgba(255, 255, 255, 0.07);
+  --md-table-even: rgba(255, 255, 255, 0.03);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+
+  /* Element Plus：暗色下 primary-light-N 是"深色底"而不是浅色底 */
+  --el-color-primary: #0a84ff;
+  --el-color-primary-light-3: #3f9bff;
+  --el-color-primary-light-5: #2f7fd8;
+  --el-color-primary-light-7: #14395f;
+  --el-color-primary-light-8: #102c49;
+  --el-color-primary-light-9: #0b2237;
+  --el-color-primary-dark-2: #3f9bff;
+
+  --el-color-success: #30d158;
+  --el-color-warning: #ffd60a;
+  --el-color-danger: #ff453a;
+  --el-color-error: #ff453a;
+  --el-color-info: #98989d;
+
+  --el-text-color-primary: #f2f2f7;
+  --el-text-color-regular: #c7c7cc;
+  --el-text-color-secondary: #98989d;
+  --el-text-color-placeholder: #6e6e73;
+
+  --el-border-color: rgba(255, 255, 255, 0.16);
+  --el-border-color-light: rgba(255, 255, 255, 0.12);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.09);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.06);
+
+  --el-fill-color-light: rgba(255, 255, 255, 0.08);
+  --el-bg-color: #1c1c1e;
+  --el-bg-color-page: #000000;
+  --el-mask-color: rgba(0, 0, 0, 0.7);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -113,11 +216,11 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(144, 147, 153, 0.32);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 
   &:hover {
-    background: rgba(144, 147, 153, 0.55);
+    background: var(--scrollbar-thumb-hover);
   }
 }
 
@@ -364,8 +467,8 @@ code,
   blockquote {
     margin: 10px 0;
     padding: 6px 12px;
-    border-left: 3px solid #d6e4f5;
-    background: #f7fafd;
+    border-left: 3px solid var(--brand-line);
+    background: var(--md-quote-bg);
     color: var(--ink-2);
   }
 
@@ -393,8 +496,8 @@ code,
   code {
     padding: 2px 5px;
     border-radius: 4px;
-    background: #f0f2f5;
-    color: #c7254e;
+    background: var(--md-code-bg);
+    color: var(--md-code-ink);
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-size: 0.92em;
   }
@@ -404,7 +507,7 @@ code,
     margin: 10px 0;
     padding: 12px 14px;
     border-radius: var(--radius-sm);
-    background: #0d1117;
+    background: var(--code-block-bg);
     overflow-x: auto;
 
     code {
@@ -433,12 +536,12 @@ code,
     }
 
     th {
-      background: #f5f7fa;
+      background: var(--md-table-head);
       font-weight: 600;
     }
 
     tbody tr:nth-child(even) {
-      background: #fbfcfd;
+      background: var(--md-table-even);
     }
   }
 }
@@ -490,9 +593,17 @@ code,
   border-radius: var(--radius-sm);
 }
 
-/* 主按钮在浅色界面里不该有渐变；统一成扁平 */
+/* 主按钮在浅色界面里不该有渐变；统一成扁平。
+   底色单独用 --brand-solid：品牌蓝 #0a84ff 配白字只有 3.6:1，
+   达不到 AA 的 4.5:1（大号粗体才放宽到 3:1），填充按钮统一用深一档的蓝。 */
 .el-button--primary {
   box-shadow: none;
+  --el-button-bg-color: var(--brand-solid);
+  --el-button-border-color: var(--brand-solid);
+  --el-button-hover-bg-color: var(--brand-ink);
+  --el-button-hover-border-color: var(--brand-ink);
+  --el-button-active-bg-color: var(--brand-solid);
+  --el-button-active-border-color: var(--brand-solid);
 }
 
 /* ============================================================

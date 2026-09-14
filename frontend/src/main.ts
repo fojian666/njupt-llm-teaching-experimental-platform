@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
+// Element 的暗色变量：文件内部只在 html.dark 下生效，导入即安全
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import {
   ArrowDown,
   ArrowDownBold,
@@ -22,17 +24,23 @@ import {
   FolderOpened,
   Lock,
   MagicStick,
+  Moon,
   MoreFilled,
   Promotion,
   Search,
   Setting,
+  Sunny,
   SwitchButton,
   User,
 } from '@element-plus/icons-vue'
 
 import App from './App.vue'
 import router from './router'
+import { initTheme } from './utils/theme'
 import './styles/index.scss'
+
+// 主题要在挂载前定下来，避免首屏按亮色渲染再切到暗色
+initTheme()
 
 const app = createApp(App)
 
@@ -70,6 +78,8 @@ const icons = {
   Delete,
   MoreFilled,
   Promotion,
+  Sunny,
+  Moon,
   SwitchButton,
 }
 

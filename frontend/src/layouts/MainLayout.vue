@@ -26,30 +26,38 @@
           </el-icon>
           <div :key="route.path" class="title">{{ route.meta.title || '' }}</div>
         </div>
-        <!-- 用户菜单：click 触发（hover 路过就弹卡很打扰）+ 右对齐 + 无箭头 + 紧贴 -->
-        <el-dropdown
-          trigger="click"
-          placement="bottom-end"
-          :show-arrow="false"
-          :popper-options="{ modifiers: [{ name: 'offset', options: { offset: [0, 8] } }] }"
-          popper-class="user-menu"
-          @visible-change="(v: boolean) => (menuOpen = v)"
-          @command="onCommand"
-        >
-          <span class="user">
-            <el-avatar :size="28">{{ userStore.name.slice(0, 1) }}</el-avatar>
-            <span class="uname">{{ userStore.name }}</span>
-            <el-tag size="small" type="info" effect="plain">{{ userStore.info?.role_label }}</el-tag>
-            <el-icon class="caret" :class="{ open: menuOpen }"><ArrowDown /></el-icon>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="logout">
-                <el-icon><SwitchButton /></el-icon>退出登录
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <div class="head-right">
+          <el-tooltip :content="theme === 'dark' ? '切换到亮色' : '切换到暗色'" placement="bottom">
+            <el-icon class="theme-btn" :size="17" aria-label="切换主题" @click="toggleTheme">
+              <Moon v-if="theme === 'light'" />
+              <Sunny v-else />
+            </el-icon>
+          </el-tooltip>
+          <!-- 用户菜单：click 触发（hover 路过就弹卡很打扰）+ 右对齐 + 无箭头 + 紧贴 -->
+          <el-dropdown
+            trigger="click"
+            placement="bottom-end"
+            :show-arrow="false"
+            :popper-options="{ modifiers: [{ name: 'offset', options: { offset: [0, 8] } }] }"
+            popper-class="user-menu"
+            @visible-change="(v: boolean) => (menuOpen = v)"
+            @command="onCommand"
+          >
+            <span class="user">
+              <el-avatar :size="28">{{ userStore.name.slice(0, 1) }}</el-avatar>
+              <span class="uname">{{ userStore.name }}</span>
+              <el-tag size="small" type="info" effect="plain">{{ userStore.info?.role_label }}</el-tag>
+              <el-icon class="caret" :class="{ open: menuOpen }"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">
+                  <el-icon><SwitchButton /></el-icon>退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
       <el-main ref="mainEl" class="main">
         <router-view v-slot="{ Component }">
@@ -66,6 +74,7 @@
 import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { theme, toggleTheme } from '@/utils/theme'
 
 const route = useRoute()
 const router = useRouter()
@@ -213,13 +222,30 @@ async function onCommand(cmd: string) {
   align-items: center;
   justify-content: space-between;
   height: var(--shell-head-h); /* 显式高度：Element 默认 60px 会与侧栏品牌区差 4px */
-  background: #fff;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--line);
 
   .head-left {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .theme-btn {
+    cursor: pointer;
+    color: var(--ink-2);
+    transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+
+    &:hover {
+      color: var(--brand);
+      transform: rotate(-15deg);
+    }
   }
 
   .collapse-btn {
@@ -265,11 +291,11 @@ async function onCommand(cmd: string) {
     transition: background-color var(--dur-fast) var(--ease);
 
     &:hover {
-      background: rgba(120, 120, 128, 0.1); /* iOS 系统灰，比 #f5f7fa 清晰一档 */
+      background: var(--bg-hover); /* iOS 系统灰，比 #f5f7fa 清晰一档 */
     }
 
     &:active {
-      background: rgba(120, 120, 128, 0.18);
+      background: var(--bg-hover-strong);
     }
 
     .uname {

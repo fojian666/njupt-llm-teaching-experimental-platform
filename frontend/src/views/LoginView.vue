@@ -75,7 +75,7 @@ async function submit() {
     width: 520px;
     height: 520px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(64, 158, 255, 0.35) 0%, rgba(64, 158, 255, 0) 70%);
+    background: radial-gradient(circle, rgba(10, 132, 255, 0.35) 0%, rgba(10, 132, 255, 0) 70%);
     pointer-events: none;
   }
 }

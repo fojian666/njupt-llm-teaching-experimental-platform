@@ -586,7 +586,7 @@ onMounted(loadAll)
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #fff; /* 助手回答不再包气泡，直接铺在白底上 */
+  background: var(--bg-card); /* 助手回答不再包气泡，直接铺在白底上 */
 
   .chat-head {
     display: flex;
@@ -594,7 +594,7 @@ onMounted(loadAll)
     justify-content: space-between;
     gap: 12px;
     padding: 12px 24px;
-    background: #fff;
+    background: var(--bg-card);
     border-bottom: 1px solid var(--line-soft); /* iOS separator 的观感：极淡 */
 
     .head-right {
@@ -623,7 +623,7 @@ onMounted(loadAll)
       display: grid;
       place-items: center;
       flex-shrink: 0;
-      color: #fff;
+      color: var(--ink-on-brand);
       font-size: 14px;
       font-weight: 600;
       background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
@@ -691,7 +691,7 @@ onMounted(loadAll)
         border-radius: 20px;
         display: grid;
         place-items: center;
-        color: #fff;
+        color: var(--ink-on-brand);
         font-size: 28px;
         font-weight: 600;
         background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
@@ -733,9 +733,9 @@ onMounted(loadAll)
       /* 建议问题做成胶囊 chip，比默认按钮轻 */
       .sug-chip {
         padding: 7px 14px;
-        border: 1px solid rgba(60, 60, 67, 0.12);
+        border: 1px solid var(--line);
         border-radius: var(--radius-pill);
-        background: #fff;
+        background: var(--bg-card);
         color: var(--ink-2);
         font-size: 13px;
         font-family: inherit;
@@ -745,8 +745,8 @@ onMounted(loadAll)
 
         &:hover {
           color: var(--brand-ink);
-          border-color: rgba(0, 122, 255, 0.35);
-          box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+          border-color: var(--brand-line);
+          box-shadow: 0 4px 12px var(--brand-soft);
           transform: translateY(-1px);
         }
       }
@@ -768,12 +768,12 @@ onMounted(loadAll)
           padding: 10px 15px;
           border-radius: 18px;
           background: var(--brand);
-          color: #fff;
+          color: var(--ink-on-brand);
           font-size: 14px;
           line-height: 1.65;
           white-space: pre-wrap;
           word-break: break-word;
-          box-shadow: 0 2px 10px rgba(64, 158, 255, 0.22);
+          box-shadow: 0 2px 10px var(--brand-soft);
           user-select: text; /* 自己提的问题要能选中复制 */
           -webkit-user-select: text;
         }
@@ -798,7 +798,7 @@ onMounted(loadAll)
         border-radius: var(--radius);
         display: grid;
         place-items: center;
-        color: #fff;
+        color: var(--ink-on-brand);
         font-size: 14px;
         font-weight: 600;
         background: linear-gradient(145deg, var(--g1, #4facfe), var(--g2, #00c6fb));
@@ -826,7 +826,7 @@ onMounted(loadAll)
         }
 
         .off {
-          color: #e6a23c;
+          color: var(--warn);
         }
       }
 
@@ -877,15 +877,15 @@ onMounted(loadAll)
   .notice {
     margin: 0 20px 8px;
     padding: 8px 12px;
-    background: #fdf6ec;
-    color: #e6a23c;
+    background: var(--warn-soft);
+    color: var(--warn);
     border-radius: var(--radius-sm);
     font-size: 12px;
     animation: fade-up 0.28s var(--ease) both;
   }
 
   .input-area {
-    background: #fff;
+    background: var(--bg-card);
     border-top: 1px solid var(--line-soft);
     padding: 12px 24px 16px;
 
@@ -894,15 +894,15 @@ onMounted(loadAll)
       max-width: 860px;
       margin: 0 auto;
       padding: 10px 12px 8px;
-      border: 1px solid rgba(60, 60, 67, 0.14);
+      border: 1px solid var(--line);
       border-radius: 20px;
-      background: #fff;
-      box-shadow: 0 2px 10px rgba(16, 24, 40, 0.05);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-1);
       transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 
       &:focus-within {
         border-color: var(--brand-line);
-        box-shadow: 0 6px 20px rgba(0, 122, 255, 0.14);
+        box-shadow: 0 6px 20px var(--brand-soft);
       }
 
       /* 去掉 el-input 自带边框与内阴影，让它"长"在卡片里 */
@@ -962,7 +962,7 @@ onMounted(loadAll)
       display: grid;
       place-items: center;
       background: var(--brand);
-      color: #fff;
+      color: var(--ink-on-brand);
       font-size: 16px;
       cursor: pointer;
       transition: background-color 0.16s var(--ease), transform 0.16s var(--ease),
@@ -971,11 +971,11 @@ onMounted(loadAll)
       &:hover:not(:disabled) {
         background: #2f8ff0;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.35);
+        box-shadow: 0 4px 12px var(--brand-line);
       }
 
       &:disabled {
-        background: rgba(120, 120, 128, 0.24);
+        background: var(--bg-hover-strong);
         cursor: not-allowed;
       }
     }
@@ -1013,7 +1013,7 @@ onMounted(loadAll)
 
     .param-label {
       font-size: 13px;
-      color: #606266;
+      color: var(--ink-2);
       margin-bottom: 6px;
     }
 

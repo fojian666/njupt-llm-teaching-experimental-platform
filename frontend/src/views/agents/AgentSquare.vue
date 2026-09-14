@@ -251,8 +251,8 @@ onMounted(async () => {
   height: 100%;
   padding: 20px;
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-1);
   cursor: pointer;
   transition: transform 0.24s var(--ease), box-shadow 0.24s var(--ease);
   animation: card-in 0.4s var(--ease) backwards;
@@ -260,12 +260,12 @@ onMounted(async () => {
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 28px rgba(16, 24, 40, 0.12);
+    box-shadow: var(--shadow-2);
   }
 
   /* 草稿态整体弱化，一眼能分辨 */
   &.draft {
-    background: #fcfcfd;
+    background: var(--bg-soft);
     box-shadow: inset 0 0 0 1px var(--line-soft), 0 1px 2px rgba(16, 24, 40, 0.03);
   }
 
@@ -293,7 +293,7 @@ onMounted(async () => {
     border-radius: 16px;
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--ink-on-brand);
     font-size: 22px;
     font-weight: 600;
     letter-spacing: 1px;
@@ -322,7 +322,7 @@ onMounted(async () => {
         width: 6px;
         height: 6px;
         border-radius: 50%;
-        background: #c0c4cc;
+        background: var(--ink-3);
       }
 
       &.published .dot {
@@ -355,11 +355,11 @@ onMounted(async () => {
     border-radius: 999px;
     font-size: 12px;
     color: var(--brand-ink);
-    background: #eef5ff;
+    background: var(--brand-soft);
 
     &.empty {
       color: var(--ink-3);
-      background: #f2f3f5;
+      background: var(--bg-hover);
     }
   }
 

@@ -138,7 +138,7 @@ async function copyChunk() {
 .citation-item {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--bg-card);
   padding: 10px 12px;
   margin-bottom: 8px;
   cursor: pointer;
@@ -147,7 +147,7 @@ async function copyChunk() {
   &:hover,
   &:focus-visible {
     border-color: var(--brand-line);
-    box-shadow: 0 2px 10px rgba(0, 122, 255, 0.12);
+    box-shadow: 0 2px 10px var(--brand-soft);
     outline: none;
 
     .open-ico {
@@ -233,7 +233,7 @@ async function copyChunk() {
   padding: 14px;
   max-height: 46vh;
   overflow: auto;
-  background: #fafbfc;
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   white-space: pre-wrap;

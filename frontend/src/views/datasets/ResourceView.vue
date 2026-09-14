@@ -444,7 +444,7 @@ onMounted(async () => {
   gap: 8px;
   margin-bottom: 12px;
   padding: 8px 12px;
-  background: #f0f7ff;
+  background: var(--brand-soft);
   border-radius: 8px;
 }
 
@@ -463,8 +463,8 @@ onMounted(async () => {
   max-height: 55vh;
   overflow: auto;
   padding: 12px;
-  background: #fafbfc;
-  border: 1px solid #e4e7ed;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
   border-radius: 6px;
   white-space: pre-wrap;
   word-break: break-word;
