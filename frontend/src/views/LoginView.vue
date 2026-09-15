@@ -49,16 +49,19 @@
 
       <el-card class="card" :class="{ 'is-shake': shaking, 'has-error': !!errorMsg }">
         <span class="card-shine" aria-hidden="true"></span>
-        <el-form :model="form" size="large" @keyup.enter="submit">
+        <el-form :model="form" size="large" @submit.prevent="submit">
           <el-form-item>
-            <el-input v-model="form.username" placeholder="用户名" autocomplete="username">
+            <el-input
+              ref="usernameRef" v-model="form.username" placeholder="用户名"
+              autocomplete="username" aria-label="用户名"
+            >
               <template #prefix><el-icon><User /></el-icon></template>
             </el-input>
           </el-form-item>
           <el-form-item>
             <el-input
               v-model="form.password" type="password" placeholder="密码"
-              show-password autocomplete="current-password"
+              show-password autocomplete="current-password" aria-label="密码"
               @focus="onPwdFocus" @blur="onPwdBlur" @keyup="onPwdKey"
             >
               <template #prefix><el-icon><Lock /></el-icon></template>
@@ -71,17 +74,18 @@
           <p v-else-if="capsOn" class="form-hint" role="status">
             <el-icon><Warning /></el-icon>大写锁定已开启
           </p>
-          <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">
+          <!-- 用原生 submit：Enter 与点击走同一条链路，密码管理器也认得 -->
+          <el-button class="submit" type="primary" size="large" native-type="submit" :loading="loading">
             <span class="submit-text">登 录</span>
             <span class="submit-glow" aria-hidden="true"></span>
           </el-button>
         </el-form>
 
         <div class="demo">
-          <span class="demo-label">演示账号</span>
+          <span class="demo-label">演示账号 · 点击直接登录</span>
           <button
             v-for="acc in demoAccounts" :key="acc.username" type="button" class="chip"
-            @click="fill(acc)"
+            :aria-label="`以${acc.label}身份直接登录`" @click="quickLogin(acc)"
           >
             {{ acc.label }}
           </button>
@@ -104,6 +108,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Sunny, MagicStick } from '@element-plus/icons-vue'
+import type { InputInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { theme, cycleTheme, THEMES } from '@/utils/theme'
 import emblem from '@/assets/njupt-emblem.png'
@@ -114,6 +119,8 @@ const userStore = useUserStore()
 
 const form = reactive({ username: 'admin', password: 'admin123' })
 const loading = ref(false)
+/** 用户名输入框，用于进页面自动聚焦 */
+const usernameRef = ref<InputInstance | null>(null)
 /** 登录失败的就地提示；空串表示无错误 */
 const errorMsg = ref('')
 /** 密码框是否开着大写锁定 */
@@ -127,6 +134,13 @@ function extractError(err: unknown): string {
     ?.data
   const text = typeof data?.detail === 'string' ? data.detail : data?.message
   return text || '登录失败，请稍后重试'
+}
+
+/** 登录后的回跳地址：只接受站内绝对路径，挡掉 //evil.com 这类外部跳转 */
+function safeNext(): string {
+  const raw = route.query.next
+  const next = typeof raw === 'string' ? raw : ''
+  return next.startsWith('/') && !next.startsWith('//') ? next : '/'
 }
 
 /** 用户一改输入就把错误提示撤掉，别让红字一直挂着 */
@@ -160,9 +174,12 @@ function onToggleTheme(e: MouseEvent) {
   cycleTheme({ x: e.clientX, y: e.clientY })
 }
 
-function fill(acc: { username: string; password: string }) {
+/** 演示账号：填好即登录，省掉演示时"填充 → 再点登录"的两步 */
+function quickLogin(acc: { username: string; password: string }) {
+  if (loading.value) return
   form.username = acc.username
   form.password = acc.password
+  submit()
 }
 
 async function submit() {
@@ -175,7 +192,7 @@ async function submit() {
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
-    router.push((route.query.next as string) || '/')
+    router.push(safeNext())
   } catch (err) {
     // 密码错是 401，拦截器对 401 只判跳转、不弹提示，所以这里自己就地提示
     errorMsg.value = extractError(err)
@@ -369,6 +386,8 @@ onMounted(() => {
   start()
   window.addEventListener('resize', resize)
   document.addEventListener('visibilitychange', onVisibility)
+  // 桌面端顺手聚焦用户名；触屏不聚焦，免得一进页面就弹键盘
+  if (window.matchMedia('(pointer: fine)').matches) usernameRef.value?.focus()
 })
 
 onBeforeUnmount(() => {
@@ -385,16 +404,19 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  overflow: hidden;
+  /* 不再写死一屏高度：视口矮的时候页面自身长高、整页可滚，内容不会被裁掉 */
+  min-height: 100%;
+  overflow-x: hidden;
+  padding: 28px 16px;
   /* 登录页跟随全局主题：tech 走深蓝科技底，light 走浅色；切换用同一套 utils */
   background:
     radial-gradient(1200px 600px at 15% 0%, #0d2340 0%, transparent 60%),
     radial-gradient(900px 500px at 85% 100%, #102a4d 0%, transparent 62%),
     #05070f;
 
+  /* 装饰层固定定位：页面滚动时背景不动，也不会被拉长变形 */
   .bg-canvas {
-    position: absolute;
+    position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
@@ -403,7 +425,7 @@ onBeforeUnmount(() => {
 
   /* 两团缓慢漂浮的光晕 */
   .glow {
-    position: absolute;
+    position: fixed;
     border-radius: 50%;
     filter: blur(70px);
     pointer-events: none;
@@ -430,7 +452,7 @@ onBeforeUnmount(() => {
 
   /* 网格：中间清晰、四周渐隐，做出纵深 */
   .grid {
-    position: absolute;
+    position: fixed;
     inset: 0;
     pointer-events: none;
     background-image:
@@ -948,7 +970,7 @@ onBeforeUnmount(() => {
   animation: fade-up 0.6s var(--ease) 1.02s both;
 }
 
-/* 小屏：卡片撑满、标题缩小，别让标题换行成三行 */
+/* 小屏：标题缩小，别换行成三行 */
 @media (max-width: 520px) {
   .title {
     font-size: 20px;
@@ -959,9 +981,35 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 矮屏（手机横屏、小笔记本、浏览器缩放）：收紧纵向间距，尽量一屏放下 */
+@media (max-height: 720px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .bot {
+    margin-bottom: 10px;
+  }
+
+  .title {
+    font-size: 22px;
+  }
+
+  .tagline {
+    display: none;
+  }
+}
+
+/* 键盘焦点：自定义按钮也要看得出焦点落在哪 */
+.theme-toggle:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 /* ---------------- 右上角主题切换按钮 ---------------- */
 .theme-toggle {
-  position: absolute;
+  position: fixed;
   top: 18px;
   right: 22px;
   z-index: 5;
