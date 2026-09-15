@@ -1,9 +1,14 @@
-import { http } from './http'
+import { http, type RequestOptions } from './http'
 import type { UserInfo, LlmOption } from '@/types'
 
 export const authApi = {
   async login(username: string, password: string): Promise<UserInfo> {
-    const { data } = await http.post<UserInfo>('/auth/login', { username, password })
+    // silent：登录失败由登录页在表单里就地提示，不要再弹一个全局 toast
+    const { data } = await http.post<UserInfo>(
+      '/auth/login',
+      { username, password },
+      { silent: true } as RequestOptions,
+    )
     return data
   },
   async logout(): Promise<void> {

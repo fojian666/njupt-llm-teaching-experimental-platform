@@ -47,7 +47,7 @@
         <span>向量检索</span><i></i><span>混合召回</span><i></i><span>引用溯源</span><i></i><span>多智能体</span>
       </div>
 
-      <el-card class="card">
+      <el-card class="card" :class="{ 'is-shake': shaking, 'has-error': !!errorMsg }">
         <span class="card-shine" aria-hidden="true"></span>
         <el-form :model="form" size="large" @keyup.enter="submit">
           <el-form-item>
@@ -59,11 +59,18 @@
             <el-input
               v-model="form.password" type="password" placeholder="密码"
               show-password autocomplete="current-password"
-              @focus="onPwdFocus" @blur="onPwdBlur"
+              @focus="onPwdFocus" @blur="onPwdBlur" @keyup="onPwdKey"
             >
               <template #prefix><el-icon><Lock /></el-icon></template>
             </el-input>
           </el-form-item>
+          <!-- 行内反馈：紧贴输入框。role=alert 让读屏能播报登录失败 -->
+          <p v-if="errorMsg" class="form-error" role="alert">
+            <el-icon><WarningFilled /></el-icon>{{ errorMsg }}
+          </p>
+          <p v-else-if="capsOn" class="form-hint" role="status">
+            <el-icon><Warning /></el-icon>大写锁定已开启
+          </p>
           <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">
             <span class="submit-text">登 录</span>
             <span class="submit-glow" aria-hidden="true"></span>
@@ -94,9 +101,8 @@
  * 右上角有主题切换按钮，点击即在两套主题间循环（与内部 MainLayout 同一套 utils）。
  * 动效全部服从 prefers-reduced-motion；页面不可见时停掉动画循环，别空转烧电。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Sunny, MagicStick } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { theme, cycleTheme, THEMES } from '@/utils/theme'
@@ -108,6 +114,28 @@ const userStore = useUserStore()
 
 const form = reactive({ username: 'admin', password: 'admin123' })
 const loading = ref(false)
+/** 登录失败的就地提示；空串表示无错误 */
+const errorMsg = ref('')
+/** 密码框是否开着大写锁定 */
+const capsOn = ref(false)
+/** 失败时卡片抖一下，动画结束复位 */
+const shaking = ref(false)
+
+/** 取后端返回的中文说明，取不到就退回一句通用文案 */
+function extractError(err: unknown): string {
+  const data = (err as { response?: { data?: { detail?: unknown; message?: string } } })?.response
+    ?.data
+  const text = typeof data?.detail === 'string' ? data.detail : data?.message
+  return text || '登录失败，请稍后重试'
+}
+
+/** 用户一改输入就把错误提示撤掉，别让红字一直挂着 */
+watch(
+  () => [form.username, form.password],
+  () => {
+    if (errorMsg.value) errorMsg.value = ''
+  },
+)
 /** 标题内容。整条标题一起做入场与扫光 —— 逐字动画和渐变文字不能共存：
  *  逐字动画的 filter/transform 会给每个字建独立层叠上下文，
  *  而字是 color: transparent 靠父级 background-clip: text 上色的，
@@ -138,14 +166,23 @@ function fill(acc: { username: string; password: string }) {
 }
 
 async function submit() {
+  if (loading.value) return // 防重复提交：loading 期间连按 Enter 也不重复发请求
   if (!form.username || !form.password) {
-    ElMessage.warning('请输入用户名和密码')
+    errorMsg.value = '请输入用户名和密码'
     return
   }
+  errorMsg.value = ''
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
     router.push((route.query.next as string) || '/')
+  } catch (err) {
+    // 密码错是 401，拦截器对 401 只判跳转、不弹提示，所以这里自己就地提示
+    errorMsg.value = extractError(err)
+    shaking.value = true
+    window.setTimeout(() => {
+      shaking.value = false
+    }, 500)
   } finally {
     loading.value = false
   }
@@ -205,7 +242,12 @@ function onPwdFocus() {
 }
 function onPwdBlur() {
   pwdFocused.value = false
+  capsOn.value = false // 离开密码框就撤掉大写锁定提示
   updateEyes()
+}
+/** 大写锁定状态只在键盘事件对象上暴露，所以要挂在 keyup 上读 */
+function onPwdKey(e: KeyboardEvent) {
+  capsOn.value = e.getModifierState?.('CapsLock') ?? false
 }
 
 // ---------------- 粒子互联网络 ----------------
@@ -636,10 +678,48 @@ onBeforeUnmount(() => {
   94%, 96% { transform: scaleY(0.12); }
 }
 
+/* ---------------- 表单行内反馈 ---------------- */
+.form-error,
+.form-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form-error {
+  color: #f56c6c;
+}
+
+.form-hint {
+  color: #e6a23c;
+}
+
+/* 失败态：输入框描边转红，和行内文案一起指认问题 */
+.card.has-error :deep(.el-input__wrapper) {
+  box-shadow: inset 0 0 0 1px rgba(245, 108, 108, 0.85);
+}
+
+/* 失败时卡片左右抖一下，比纯文字更容易被注意到 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+
+.card.is-shake {
+  animation: shake 0.45s var(--ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bot,
   .eye,
-  .antenna-light {
+  .antenna-light,
+  .card.is-shake {
     animation: none;
   }
 }
